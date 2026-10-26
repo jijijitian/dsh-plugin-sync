@@ -3,4 +3,4 @@
     - id: dsh-plugin-sync
       name: dsh-plugin-sync
       config:
-        gistId: ''
+        gistName: dsh-plugin-sync

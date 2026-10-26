@@ -7,7 +7,8 @@ test('status rendering handles an empty last run', () => {
     ok: true,
     action: 'status',
     hostId: 'host-a',
-    config: { gistId: '0123456789abcdef', fileName: 'dsh-plugins.json' },
+    config: { gistName: 'dsh-plugin-sync', fileName: 'dsh-plugins.json' },
+    gistName: 'dsh-plugin-sync',
     gistId: '0123456789abcdef',
     gistUrl: 'https://gist.github.com/0123456789abcdef',
     token: { configured: false, source: null },
@@ -59,20 +60,19 @@ test('apply rendering lists installed and failed entries', () => {
   assert.match(blocks[0].text, /! two: boom/)
 })
 
-test('normalizeConfig derives a host id and rejects invalid Gist ids', () => {
-  const valid = normalizeConfig({ gistId: '0123456789abcdef' })
-  assert.equal(valid.gistId, '0123456789abcdef')
+test('normalizeConfig defaults and customizes the Gist name', () => {
+  const valid = normalizeConfig({ gistName: 'team-sync' })
+  assert.equal(valid.gistName, 'team-sync')
   assert.ok(valid.hostId.length > 0)
-  const invalid = normalizeConfig({ gistId: 'not an id' })
-  assert.equal(invalid.gistId, '')
-  assert.match(invalid.configError, /Gist id/)
+  const fallback = normalizeConfig({ gistName: '   ' })
+  assert.equal(fallback.gistName, 'dsh-plugin-sync')
 })
 
 test('normalizeConfig rejects insecure non-loopback API URLs', () => {
-  const config = normalizeConfig({ gistId: '0123456789abcdef', apiBaseUrl: 'http://example.com/api' })
+  const config = normalizeConfig({ gistName: 'team-sync', apiBaseUrl: 'http://example.com/api' })
   assert.equal(config.apiBaseUrl, 'https://api.github.com')
   assert.match(config.configError, /plain HTTP/)
-  const loopback = normalizeConfig({ gistId: '0123456789abcdef', apiBaseUrl: 'http://127.0.0.1:1234' })
+  const loopback = normalizeConfig({ gistName: 'team-sync', apiBaseUrl: 'http://127.0.0.1:1234' })
   assert.equal(loopback.apiBaseUrl, 'http://127.0.0.1:1234')
   assert.equal(loopback.configError, undefined)
 })

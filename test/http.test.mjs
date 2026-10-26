@@ -8,7 +8,7 @@ function createHarness(credentials = undefined) {
   const registrations = []
   const state = {
     current: {
-      gistId: '',
+      gistName: 'dsh-plugin-sync',
       fileName: 'dsh-plugins.json',
       description: 'DSH plugin inventory',
       hostId: 'host-a',
@@ -22,7 +22,7 @@ function createHarness(credentials = undefined) {
     configuration() {
       return [{
         entry: { options: { id: 'dsh-plugin-sync', config: state.current } },
-        inherited: { gistId: '' },
+        inherited: { gistName: '' },
         override: {},
       }]
     },
@@ -55,7 +55,7 @@ function createHarness(credentials = undefined) {
   const config = normalizeConfig(state.current)
   const runtime = {
     async status() {
-      return { ok: true, configured: false, gistId: '', config: { gistId: '' }, token: { configured: false }, local: null, state: {} }
+      return { ok: true, configured: false, gistName: 'dsh-plugin-sync', gistId: '', config: { gistName: 'dsh-plugin-sync' }, token: { configured: false }, local: null, state: {} }
     },
   }
   registerApiRoutes({ ctx, runtime, config })
@@ -101,7 +101,7 @@ test('status route returns config snapshot without the token', async () => {
   assert.equal(response.status, 200)
   const data = JSON.parse(response.body)
   assert.equal(data.ok, true)
-  assert.equal(data.configSnapshot.values.gistId, '')
+  assert.equal(data.configSnapshot.values.gistName, 'dsh-plugin-sync')
   assert.equal(JSON.stringify(data).includes('secret'), false)
 })
 
@@ -111,12 +111,12 @@ test('config route saves allowed fields through configEditor', async () => {
   const response = fakeResponse()
   await route.handler(request({
     method: 'POST',
-    body: { values: { gistId: '0123456789abcdef' } },
+    body: { values: { gistName: 'team-sync' } },
   }), response)
   assert.equal(response.status, 200)
   const data = JSON.parse(response.body)
   assert.equal(data.ok, true)
-  assert.equal(state.current.gistId, '0123456789abcdef')
+  assert.equal(state.current.gistName, 'team-sync')
   assert.equal(state.current.fileName, undefined)
   assert.equal(state.current.maxInstallsPerRun, undefined)
 })
@@ -140,7 +140,7 @@ test('config route stores a page-entered token in credentials', async () => {
   const response = fakeResponse()
   await route.handler(request({
     method: 'POST',
-    body: { values: { gistId: '0123456789abcdef' }, token: 'ghp_test' },
+    body: { values: { gistName: 'team-sync' }, token: 'ghp_test' },
   }), response)
   assert.equal(response.status, 200)
   assert.equal(store.value, 'ghp_test')
@@ -148,13 +148,12 @@ test('config route stores a page-entered token in credentials', async () => {
   assert.equal(data.credential.configured, true)
 })
 
-test('config route rejects an invalid Gist id and cross-origin requests', async () => {
+test('config route accepts a custom Gist name and rejects cross-origin requests', async () => {
   const { routes } = createHarness()
   const route = routes.get('/dsh-plugin-sync/api/v2/config')
   const bad = fakeResponse()
-  await route.handler(request({ method: 'POST', body: { values: { gistId: 'not an id' } } }), bad)
-  assert.equal(bad.status, 400)
-  assert.match(bad.body, /Gist id/)
+  await route.handler(request({ method: 'POST', body: { values: { gistName: 'team-sync' } } }), bad)
+  assert.equal(bad.status, 200)
 
   const crossed = fakeResponse()
   await route.handler(request({ method: 'GET', origin: 'https://evil.example' }), crossed)

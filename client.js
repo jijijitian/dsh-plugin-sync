@@ -6,11 +6,11 @@ window.__ModuleLoader__.load({
     const NS = 'dsh-plugin-sync'
 
     const zh = {
-      summary: '只需要一个 GitHub Token；首次推送会自动创建私有 Gist。',
+      summary: '默认使用 Gist 名称 dsh-plugin-sync；首次推送会自动创建。',
       configTitle: 'GitHub 连接',
-      configHint: '只需要 Token；Gist ID 可留空，首次推送时自动创建。',
-      fieldGistId: 'Gist ID',
-      fieldGistIdHint: '可留空；其他主机粘贴同一个 Gist ID 或 gist.github.com 链接。',
+      configHint: '只需要 Token；Gist 名称默认 dsh-plugin-sync，也可以修改。',
+      fieldGistName: 'Gist 名称',
+      fieldGistNameHint: '默认 dsh-plugin-sync；同一 GitHub 账号的其他主机填写相同名称即可。',
       fieldToken: 'GitHub Token',
       fieldTokenHint: 'classic token，需要 gist 权限；已配置时留空表示不修改。',
       tokenPlaceholder: 'ghp_...',
@@ -43,8 +43,9 @@ window.__ModuleLoader__.load({
       configUnavailable: '当前 Host 没有可用的配置编辑器，无法保存配置。',
       tokenConfigured: 'Token 已配置（{source}）',
       tokenMissing: '未配置 Token：可预览公开 Gist，但不能创建或推送。',
-      gistMissing: '请先创建 Gist，或填写已有 Gist ID。',
-      saveGistFirst: 'Gist ID 已修改，请先保存配置再同步。',
+      gistMissing: '尚未缓存该名称的 Gist；点击拉取会按名称查找，首次推送会自动创建。',
+      saveGistFirst: 'Gist 名称已修改，请先保存配置再同步。',
+      gistNameLabel: 'Gist 名称：{gistName}（未缓存）',
       localInfo: '本机 {profile} 个插件，其中 {portable} 个可移植。',
       manualTitle: '手动同步',
       manualHint: '点击“拉取线上清单”后，先预览变更和冲突；只有点击“应用同步”才会安装。不会自动同步。',
@@ -97,10 +98,10 @@ window.__ModuleLoader__.load({
       pushConfirmButton: '确认推送',
       pushCancel: '取消',
       pushing: '正在推送…',
-      pushCreated: '已创建 Gist（{gistId}）。请复制到其他主机。',
+      pushCreated: '已创建 Gist（{gistName}）。其他主机填写相同名称即可。',
       pushPushed: '已推送（{version}）',
       pushUnchanged: 'Gist 清单已是最新。',
-      gistLabel: 'Gist：{gistId}',
+      gistLabel: 'Gist：{gistName}',
       lastPreview: '上次拉取：{time}',
       lastApply: '上次应用：{time}',
       lastPush: '上次推送：{time}',
@@ -115,11 +116,11 @@ window.__ModuleLoader__.load({
     }
 
     const en = {
-      summary: 'Only a GitHub token is required; the first push creates a secret Gist.',
+      summary: 'Use the default Gist name dsh-plugin-sync; the first push creates it.',
       configTitle: 'GitHub connection',
-      configHint: 'Only a token is needed. Leave Gist ID blank to create one on first push.',
-      fieldGistId: 'Gist ID',
-      fieldGistIdHint: 'Optional; other hosts paste the same Gist ID or gist.github.com URL.',
+      configHint: 'Only a token is needed. The Gist name defaults to dsh-plugin-sync and can be changed.',
+      fieldGistName: 'Gist name',
+      fieldGistNameHint: 'Defaults to dsh-plugin-sync. Other hosts on the same GitHub account use the same name.',
       fieldToken: 'GitHub Token',
       fieldTokenHint: 'Classic token with the gist scope. Leave blank to keep the configured token.',
       tokenPlaceholder: 'ghp_...',
@@ -152,8 +153,9 @@ window.__ModuleLoader__.load({
       configUnavailable: 'This Host has no configuration editor, so the configuration cannot be saved.',
       tokenConfigured: 'Token configured ({source})',
       tokenMissing: 'No token: public Gists can be previewed, but create/push is unavailable.',
-      gistMissing: 'Create a Gist first, or paste an existing Gist ID.',
-      saveGistFirst: 'The Gist ID changed. Save the configuration before syncing.',
+      gistMissing: 'This Gist name is not cached yet; Pull searches by name, and the first push creates it.',
+      saveGistFirst: 'The Gist name changed. Save the configuration before syncing.',
+      gistNameLabel: 'Gist name: {gistName} (not cached)',
       localInfo: '{profile} local bundles, {portable} portable.',
       manualTitle: 'Manual sync',
       manualHint: 'Pull the Gist manifest, review changes and conflicts, then click Apply. Nothing installs until you apply. There is no automatic sync.',
@@ -206,10 +208,10 @@ window.__ModuleLoader__.load({
       pushConfirmButton: 'Confirm push',
       pushCancel: 'Cancel',
       pushing: 'Pushing…',
-      pushCreated: 'Created Gist ({gistId}). Copy this ID to the other hosts.',
+      pushCreated: 'Created Gist ({gistName}). Other hosts use the same name.',
       pushPushed: 'Pushed ({version})',
       pushUnchanged: 'The Gist manifest is already up to date.',
-      gistLabel: 'Gist: {gistId}',
+      gistLabel: 'Gist: {gistName}',
       lastPreview: 'Last pull: {time}',
       lastApply: 'Last apply: {time}',
       lastPush: 'Last push: {time}',
@@ -277,7 +279,7 @@ window.__ModuleLoader__.load({
 `
 
     const FIELDS = [
-      { key: 'gistId', label: 'fieldGistId', hint: 'fieldGistIdHint', placeholder: 'Gist ID or gist.github.com URL' },
+      { key: 'gistName', label: 'fieldGistName', hint: 'fieldGistNameHint', placeholder: 'dsh-plugin-sync' },
     ]
     const TOKEN_FIELD = { key: 'token', label: 'fieldToken', hint: 'fieldTokenHint', placeholder: 'Gist token', type: 'password' }
     const TOKEN_URL = 'https://github.com/settings/tokens/new?description=DSH%20Plugin%20Sync&scopes=gist'
@@ -404,12 +406,12 @@ window.__ModuleLoader__.load({
       const configSnapshot = status?.configSnapshot
       const values = draft ?? configSnapshot?.values ?? {}
       const editable = configSnapshot?.editable === true
-      const draftGistId = typeof values.gistId === 'string' ? values.gistId : ''
-      const savedGistId = typeof configSnapshot?.values?.gistId === 'string' ? configSnapshot.values.gistId : ''
-      const effectiveGistId = draftGistId !== '' ? draftGistId : (status?.gistId ?? '')
-      const gistConfigured = effectiveGistId !== ''
-      const gistDirty = draftGistId !== savedGistId
-      const canOperate = gistConfigured && !gistDirty
+      const draftGistName = typeof values.gistName === 'string' ? values.gistName : ''
+      const savedGistName = typeof configSnapshot?.values?.gistName === 'string' ? configSnapshot.values.gistName : ''
+      const effectiveGistName = draftGistName || status?.gistName || 'dsh-plugin-sync'
+      const gistConfigured = typeof status?.gistId === 'string' && status.gistId !== ''
+      const gistDirty = draftGistName !== savedGistName
+      const canOperate = !gistDirty
       const gistUri = status?.gistUrl ?? null
       const token = status?.token
       const state = status?.state
@@ -430,7 +432,7 @@ window.__ModuleLoader__.load({
           await call('config', {
             method: 'POST',
             body: {
-              values: { gistId: (draft ?? values).gistId ?? '' },
+              values: { gistName: (draft ?? values).gistName ?? '' },
               ...(tokenDraft.trim() === '' ? {} : { token: tokenDraft.trim() }),
             },
           })
@@ -455,6 +457,7 @@ window.__ModuleLoader__.load({
           for (const entry of data.entries) next[entry.id] = entry.defaultChoice
           setPreview(data)
           setSelections(next)
+          void loadStatus()
         } catch (failure) {
           setError(t('actionFailed', { message: failure.message }))
         } finally {
@@ -490,18 +493,11 @@ window.__ModuleLoader__.load({
         try {
           const data = await call('push', { method: 'POST', body: { confirm: true } })
           setPushResult(data)
-          if (typeof data.gistId === 'string' && data.gistId !== '') {
-            setDraft((current) => ({ ...(current ?? values), gistId: data.gistId }))
-            if (data.created === true) {
-              try {
-                await call('config', { method: 'POST', body: { values: { gistId: data.gistId } } })
-              } catch {
-                // The id is still available from the status/state fallback.
-              }
-            }
+          if (typeof data.gistName === 'string' && data.gistName !== '') {
+            setDraft((current) => ({ ...(current ?? values), gistName: data.gistName }))
           }
           setMessage(data.created === true
-            ? t('pushCreated', { gistId: data.gistId ?? '' })
+            ? t('pushCreated', { gistName: data.gistName ?? effectiveGistName })
             : data.status === 'pushed'
               ? t('pushPushed', { version: (data.version ?? '').slice(0, 12) })
               : t('pushUnchanged'))
@@ -622,7 +618,9 @@ window.__ModuleLoader__.load({
           ),
           h('div', { className: 'dsh-ps-summary' },
             h('span', { className: `dsh-ps-badge ${gistConfigured ? 'ok' : 'warn'}` },
-              gistConfigured ? t('gistLabel', { gistId: effectiveGistId }) : t('notConfigured')),
+              gistConfigured
+                ? t('gistLabel', { gistName: effectiveGistName })
+                : t('gistNameLabel', { gistName: effectiveGistName })),
             gistUri === null || gistDirty ? null : h('a', {
               className: 'dsh-ps-muted',
               href: gistUri,
@@ -646,9 +644,9 @@ window.__ModuleLoader__.load({
               onClick: () => { setPreview(null); setApplyResult(null) },
             }, t('discard')),
           ),
-          !gistConfigured
-            ? h('div', { className: 'dsh-ps-alert' }, t('gistMissing'))
-            : gistDirty ? h('div', { className: 'dsh-ps-alert' }, t('saveGistFirst')) : null,
+          gistDirty
+            ? h('div', { className: 'dsh-ps-alert' }, t('saveGistFirst'))
+            : !gistConfigured ? h('div', { className: 'dsh-ps-alert' }, t('gistMissing')) : null,
           preview === null ? null : h(React.Fragment, null,
             h('div', { className: 'dsh-ps-summary' },
               h('span', { className: 'dsh-ps-badge' }, t('previewSummary', {
@@ -744,7 +742,7 @@ window.__ModuleLoader__.load({
           ),
           pushResult === null ? null : h('div', { className: 'dsh-ps-ok' },
             pushResult.created === true
-              ? t('pushCreated', { gistId: pushResult.gistId ?? '' })
+              ? t('pushCreated', { gistName: pushResult.gistName ?? effectiveGistName })
               : pushResult.status === 'pushed'
                 ? t('pushPushed', { version: (pushResult.version ?? '').slice(0, 12) })
                 : t('pushUnchanged')),

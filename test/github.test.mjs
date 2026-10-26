@@ -34,6 +34,18 @@ function startMock({ initial = null, token = '', conflictOnce = false, truncated
       res.end(JSON.stringify({ message: 'Bad credentials' }))
       return
     }
+    if (req.method === 'GET' && url.pathname === '/gists') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify(state === null ? [] : [{
+        id: state.id,
+        description: 'dsh-plugin-sync',
+        public: false,
+        html_url: 'https://gist.github.com/0123456789abcdef',
+        updated_at: '2026-01-02T00:00:00.000Z',
+        history: [{ version: state.version }],
+      }]))
+      return
+    }
     if (req.method === 'GET' && url.pathname === '/gists/0123456789abcdef') {
       reads += 1
       if (state === null) {
@@ -141,6 +153,16 @@ test('reads a Gist manifest and returns its version', async (t) => {
   assert.equal(remote.exists, true)
   assert.equal(remote.version, 'version-1')
   assert.equal(remote.manifest.hosts['host-a'].bundles[0].name, 'pkg')
+})
+
+test('lists Gists with descriptions for name lookup', async (t) => {
+  const mock = await startMock({ initial: manifest() })
+  t.after(() => mock.close())
+  const client = createGitHubClient({ apiBaseUrl: mock.apiBaseUrl, token: 'x' })
+  const gists = await client.listGists()
+  assert.equal(gists.length, 1)
+  assert.equal(gists[0].gistId, '0123456789abcdef')
+  assert.equal(gists[0].description, 'dsh-plugin-sync')
 })
 
 test('a missing Gist file reads as an empty manifest', async (t) => {

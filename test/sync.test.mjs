@@ -18,6 +18,18 @@ function startMock(initial) {
   let writes = 0
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1')
+    if (req.method === 'GET' && url.pathname === '/gists') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify(state === null ? [] : [{
+        id: state.id,
+        description: 'dsh-plugin-sync',
+        public: false,
+        html_url: 'https://gist.github.com/0123456789abcdef',
+        updated_at: '2026-01-02T00:00:00.000Z',
+        history: [{ version: state.version }],
+      }]))
+      return
+    }
     if (req.method === 'GET' && url.pathname === '/gists/0123456789abcdef') {
       if (state === null) {
         res.writeHead(404, { 'content-type': 'application/json' })
@@ -101,7 +113,7 @@ function startMock(initial) {
 
 function makeConfig(overrides = {}) {
   return {
-    gistId: '0123456789abcdef',
+    gistName: 'dsh-plugin-sync',
     fileName: 'dsh-plugins.json',
     description: 'DSH plugin inventory',
     apiBaseUrl: 'http://127.0.0.1:1',
@@ -237,7 +249,7 @@ test('push with no Gist id creates a secret Gist and remembers it', async (t) =>
   const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   const runtime = createSyncRuntime({
-    config: makeConfig({ gistId: '', apiBaseUrl: mock.apiBaseUrl }),
+    config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
     pluginManager: new FakeManager([]),
     logger: { info() {}, warn() {} },
     statePath: join(dir, 'state.json'),
@@ -260,13 +272,13 @@ test('preview without a Gist id asks for one', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
   const runtime = createSyncRuntime({
-    config: makeConfig({ gistId: '', apiBaseUrl: mock.apiBaseUrl }),
+    config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
     pluginManager: new FakeManager([]),
     logger: { info() {}, warn() {} },
     statePath: join(dir, 'state.json'),
     env: {},
   })
-  await assert.rejects(() => runtime.preview(), /No Gist is configured/)
+  await assert.rejects(() => runtime.preview(), /No Gist named/)
 })
 
 test('without a token preview and apply still work but push fails', async (t) => {

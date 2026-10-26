@@ -2,7 +2,7 @@
 
 Manual plugin-inventory sync for DeepSeek Harness (DSH) through a private **GitHub Gist**. Configure it inside the plugin page, pull the Gist, review changes and conflicts, then install only what you select.
 
-> Version 2.2.0 uses a secret Gist instead of a GitHub repository. Version 2.3.0 reduces the page configuration to **Gist ID + GitHub Token**. Version 2.0.0 is manual only: no startup sync, interval sync, or plugin-change sync.
+> Version 2.2.0 uses a secret Gist instead of a GitHub repository. Version 2.4.0 looks up by **Gist name** (default `dsh-plugin-sync`) and creates it on first push when missing. Version 2.0.0 is manual only: no startup sync, interval sync, or plugin-change sync.
 
 ## DSH compatibility
 
@@ -19,8 +19,8 @@ plugin_manager action=install_bundle target=github:jijijitian/dsh-plugin-sync
 ## Use
 
 1. **Token**: enter a classic GitHub token with the `gist` scope in the plugin page. It is stored in DSH's credential service, not in the plugin configuration. On the first fill, click **How to get a token** to see the required permission and steps, then open the prefilled GitHub token page. An existing `GITHUB_TOKEN` environment token is detected and can be left unchanged.
-2. **First host**: leave **Gist ID** empty and click **Create Gist and push local inventory**. The plugin creates a secret Gist, writes `dsh-plugins.json`, stores the Gist ID locally, and saves it to the configuration when possible.
-3. **Other hosts**: paste the same Gist ID or `https://gist.github.com/...` URL. No repository or new Gist is needed.
+2. **First host**: keep the default **Gist name** `dsh-plugin-sync` and click **Create Gist and push local inventory**. The plugin creates a secret Gist, writes `dsh-plugins.json`, stores the name and ID locally.
+3. **Other hosts**: use the same Gist name. The plugin searches the current account by name; no repository or new Gist is needed. If it does not exist, the first push creates it.
 4. **Pull**: click **Pull Gist manifest**. This only reads the Gist and stores a 10-minute preview.
 5. **Resolve conflicts** per row:
    - missing remote bundle → use remote or skip;
@@ -38,14 +38,14 @@ The page only asks for two inputs:
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| Gist ID | empty | Optional; the first push creates one. Other hosts paste the same ID/URL |
+| Gist name | `dsh-plugin-sync` | Default name; editable. Other hosts on the same account use the same name, and the first push creates it if missing |
 | GitHub Token | — | Stored in DSH credentials; leave blank to keep the configured token |
 
 The remaining values use fixed defaults: `dsh-plugins.json`, a fixed Gist description, the hostname as host id, 20 installs per apply, and `https://api.github.com`. Hidden values retained from older configurations are preserved but no longer shown.
 
 ## Migration from the 2.1 repository configuration
 
-`repo`, `branch`, and `path` are no longer read and are removed when the configuration is saved. Update the plugin, restart DSH, then either create a Gist with an empty Gist ID or paste an existing Gist ID.
+`repo`, `branch`, and `path` are no longer read and are removed when the configuration is saved. Update the plugin, restart DSH, then keep the default Gist name or enter an existing name.
 
 ## Security
 
