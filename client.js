@@ -6,11 +6,16 @@ window.__ModuleLoader__.load({
     const NS = 'dsh-plugin-sync'
 
     const zh = {
-      summary: '配置 GitHub Gist 清单，手动拉取并应用插件变更。',
-      configTitle: 'GitHub Gist 配置',
-      configHint: '保存后会重新加载插件。清单保存在私有 Gist 中。',
+      summary: '只需要一个 GitHub Token；首次推送会自动创建私有 Gist。',
+      configTitle: 'GitHub 连接',
+      configHint: '只需要 Token；Gist ID 可留空，首次推送时自动创建。',
       fieldGistId: 'Gist ID',
-      fieldGistIdHint: '留空时由“创建 Gist 并推送”自动创建；其他主机填写同一个 Gist ID。',
+      fieldGistIdHint: '可留空；其他主机粘贴同一个 Gist ID 或 gist.github.com 链接。',
+      fieldToken: 'GitHub Token',
+      fieldTokenHint: 'classic token，需要 gist 权限；已配置时留空表示不修改。',
+      tokenPlaceholder: 'ghp_...',
+      tokenPlaceholderConfigured: '已配置，留空不修改',
+      tokenReadonly: 'Token 由环境变量或外部凭据提供，无法在页面修改。',
       fieldFileName: '清单文件名',
       fieldDescription: 'Gist 描述',
       fieldHostId: '主机标识',
@@ -98,11 +103,16 @@ window.__ModuleLoader__.load({
     }
 
     const en = {
-      summary: 'Configure a GitHub Gist manifest and pull/apply plugin changes manually.',
-      configTitle: 'GitHub Gist',
-      configHint: 'Saving reloads the plugin. The manifest lives in a secret Gist.',
+      summary: 'Only a GitHub token is required; the first push creates a secret Gist.',
+      configTitle: 'GitHub connection',
+      configHint: 'Only a token is needed. Leave Gist ID blank to create one on first push.',
       fieldGistId: 'Gist ID',
-      fieldGistIdHint: 'Leave blank to create one with “Create Gist and push”; other hosts paste the same Gist ID.',
+      fieldGistIdHint: 'Optional; other hosts paste the same Gist ID or gist.github.com URL.',
+      fieldToken: 'GitHub Token',
+      fieldTokenHint: 'Classic token with the gist scope. Leave blank to keep the configured token.',
+      tokenPlaceholder: 'ghp_...',
+      tokenPlaceholderConfigured: 'Configured; leave blank to keep it',
+      tokenReadonly: 'The token comes from the environment or an external credential and cannot be changed here.',
       fieldFileName: 'Manifest file name',
       fieldDescription: 'Gist description',
       fieldHostId: 'Host id',
@@ -238,12 +248,8 @@ window.__ModuleLoader__.load({
 
     const FIELDS = [
       { key: 'gistId', label: 'fieldGistId', hint: 'fieldGistIdHint', placeholder: 'Gist ID or gist.github.com URL' },
-      { key: 'fileName', label: 'fieldFileName', hint: null, placeholder: 'dsh-plugins.json' },
-      { key: 'description', label: 'fieldDescription', hint: null, placeholder: 'DSH plugin inventory' },
-      { key: 'hostId', label: 'fieldHostId', hint: 'fieldHostIdHint', placeholder: '' },
-      { key: 'tokenEnv', label: 'fieldTokenEnv', hint: 'fieldTokenEnvHint', placeholder: 'GITHUB_TOKEN' },
-      { key: 'tokenFile', label: 'fieldTokenFile', hint: 'fieldTokenFileHint', placeholder: '~/.dsh/github-token' },
     ]
+    const TOKEN_FIELD = { key: 'token', label: 'fieldToken', hint: 'fieldTokenHint', placeholder: 'Gist token', type: 'password' }
 
     function endpoint(name) {
       return new URL(`dsh-plugin-sync/api/v2/${name}`, document.baseURI).pathname
@@ -310,12 +316,13 @@ window.__ModuleLoader__.load({
         h('span', { className: 'dsh-ps-label' }, t(field.label)),
         h('input', {
           className: 'dsh-ps-input',
-          type: field.key === 'maxInstallsPerRun' ? 'number' : 'text',
+          type: field.type ?? (field.key === 'maxInstallsPerRun' ? 'number' : 'text'),
           min: field.key === 'maxInstallsPerRun' ? 1 : undefined,
           max: field.key === 'maxInstallsPerRun' ? 50 : undefined,
           value: value ?? '',
           placeholder: field.placeholder,
           disabled,
+          autoComplete: field.type === 'password' ? 'off' : undefined,
           onChange: (event) => onChange(field.key, event.target.value),
         }),
         hint === null ? null : h('span', { className: 'dsh-ps-hint' }, hint),
@@ -325,6 +332,7 @@ window.__ModuleLoader__.load({
     function ConfigPage({ t, view }) {
       const [status, setStatus] = React.useState(null)
       const [draft, setDraft] = React.useState(null)
+      const [tokenDraft, setTokenDraft] = React.useState('')
       const [loading, setLoading] = React.useState(true)
       const [saving, setSaving] = React.useState(false)
       const [message, setMessage] = React.useState(null)
@@ -387,7 +395,14 @@ window.__ModuleLoader__.load({
         setError(null)
         setMessage(null)
         try {
-          await call('config', { method: 'POST', body: { values: draft ?? values } })
+          await call('config', {
+            method: 'POST',
+            body: {
+              values: { gistId: (draft ?? values).gistId ?? '' },
+              ...(tokenDraft.trim() === '' ? {} : { token: tokenDraft.trim() }),
+            },
+          })
+          setTokenDraft('')
           setMessage(t('saved'))
           setTimeout(() => { void loadStatus() }, 1200)
         } catch (failure) {
@@ -506,18 +521,20 @@ window.__ModuleLoader__.load({
               t,
               value: values[field.key],
               disabled: !editable || saving,
-              hintOverride: field.key === 'hostId' && values.hostIdDefault
-                ? `${t('fieldHostIdHint')} (${values.hostIdDefault})`
-                : undefined,
               onChange: updateField,
             })),
             h(ConfigField, {
-              key: 'maxInstallsPerRun',
-              field: { key: 'maxInstallsPerRun', label: 'fieldMaxInstalls', hint: null, placeholder: '20' },
+              key: 'token',
+              field: {
+                ...TOKEN_FIELD,
+                placeholder: token?.configured ? t('tokenPlaceholderConfigured') : t('tokenPlaceholder'),
+                hint: null,
+              },
               t,
-              value: values.maxInstallsPerRun,
-              disabled: !editable || saving,
-              onChange: updateField,
+              value: tokenDraft,
+              disabled: !editable || saving || token?.writable === false,
+              hintOverride: token?.writable === false ? t('tokenReadonly') : t('fieldTokenHint'),
+              onChange: (_key, value) => { setTokenDraft(value) },
             }),
           ),
           h('div', { className: 'dsh-ps-actions' },

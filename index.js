@@ -109,6 +109,7 @@ export function apply(ctx, rawConfig) {
   const runtime = createSyncRuntime({
     config,
     pluginManager: ctx.pluginManager,
+    credentials: ctx.get('credentials') ?? null,
     logger: ctx.logger,
   })
 
@@ -194,7 +195,5 @@ export function apply(ctx, rawConfig) {
     runtime.log('warn', config.configError)
   } else if (config.gistId === '') {
     runtime.log('info', 'no Gist id configured; push once to create a secret Gist')
-  } else if (!runtime.tokenConfigured) {
-    runtime.log('info', 'no GitHub token configured; preview works for an accessible Gist, push is unavailable')
   }
 }

@@ -2,7 +2,7 @@
 
 Manual plugin-inventory sync for DeepSeek Harness (DSH) through a private **GitHub Gist**. Configure it inside the plugin page, pull the Gist, review changes and conflicts, then install only what you select.
 
-> Version 2.2.0 uses a secret Gist instead of a GitHub repository. Version 2.0.0 is manual only: no startup sync, interval sync, or plugin-change sync.
+> Version 2.2.0 uses a secret Gist instead of a GitHub repository. Version 2.3.0 reduces the page configuration to **Gist ID + GitHub Token**. Version 2.0.0 is manual only: no startup sync, interval sync, or plugin-change sync.
 
 ## DSH compatibility
 
@@ -18,7 +18,7 @@ plugin_manager action=install_bundle target=github:jijijitian/dsh-plugin-sync
 
 ## Use
 
-1. **Token**: use a classic GitHub token with the `gist` scope through `GITHUB_TOKEN`, `tokenEnv`, or `tokenFile`.
+1. **Token**: enter a classic GitHub token with the `gist` scope in the plugin page. It is stored in DSH's credential service, not in the plugin configuration. An existing `GITHUB_TOKEN` environment token is detected and can be left unchanged.
 2. **First host**: leave **Gist ID** empty and click **Create Gist and push local inventory**. The plugin creates a secret Gist, writes `dsh-plugins.json`, stores the Gist ID locally, and saves it to the configuration when possible.
 3. **Other hosts**: paste the same Gist ID or `https://gist.github.com/...` URL. No repository or new Gist is needed.
 4. **Pull**: click **Pull Gist manifest**. This only reads the Gist and stores a 10-minute preview.
@@ -34,17 +34,14 @@ plugin_manager action=install_bundle target=github:jijijitian/dsh-plugin-sync
 
 ## Configuration
 
-| Key | Default | Meaning |
+The page only asks for two inputs:
+
+| Field | Default | Meaning |
 | --- | --- | --- |
-| `gistId` | `''` | Gist ID or `gist.github.com` URL; empty creates one on first push |
-| `fileName` | `dsh-plugins.json` | Manifest file name in the Gist |
-| `description` | `DSH plugin inventory` | Gist description on create/update |
-| `hostId` | hostname | Host key in the manifest |
-| `tokenEnv` | `GITHUB_TOKEN` | Environment variable holding the token |
-| `tokenFile` | `''` | File holding the token, supports `~` |
-| `maxInstallsPerRun` | `20` | Maximum installs/enables per apply |
-| `apiBaseUrl` | `https://api.github.com` | API endpoint; not editable in the page |
-| `token` | `''` | Legacy direct token; preserved but hidden |
+| Gist ID | empty | Optional; the first push creates one. Other hosts paste the same ID/URL |
+| GitHub Token | — | Stored in DSH credentials; leave blank to keep the configured token |
+
+The remaining values use fixed defaults: `dsh-plugins.json`, a fixed Gist description, the hostname as host id, 20 installs per apply, and `https://api.github.com`. Hidden values retained from older configurations are preserved but no longer shown.
 
 ## Migration from the 2.1 repository configuration
 
@@ -52,7 +49,7 @@ plugin_manager action=install_bundle target=github:jijijitian/dsh-plugin-sync
 
 ## Security
 
-The Gist is secret but still reachable by URL; do not publish its ID together with the token. The remote manifest is trusted input because it selects packages that run with your permissions. The plugin rejects local filesystem specs, never returns the token to the browser, never writes it into the manifest/Gist/state, and never auto-removes or auto-downgrades plugins.
+The Gist is secret but still reachable by URL; do not publish its ID together with the token. The remote manifest is trusted input because it selects packages that run with your permissions. The plugin rejects local filesystem specs, stores the page token in DSH credentials rather than the plugin config, never returns the token to the browser, never writes it into the manifest/Gist, and never auto-removes or auto-downgrades plugins.
 
 ## Development
 

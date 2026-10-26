@@ -4,9 +4,3 @@
       name: dsh-plugin-sync
       config:
         gistId: ''
-        fileName: dsh-plugins.json
-        description: DSH plugin inventory
-        hostId: ''
-        tokenEnv: GITHUB_TOKEN
-        tokenFile: ''
-        maxInstallsPerRun: 20

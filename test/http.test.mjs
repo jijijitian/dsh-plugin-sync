@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { normalizeConfig } from '../lib/config.js'
 import { registerApiRoutes } from '../lib/http.js'
 
-function createHarness() {
+function createHarness(credentials = undefined) {
   const routes = new Map()
   const registrations = []
   const state = {
@@ -33,7 +33,11 @@ function createHarness() {
     },
   }
   const ctx = {
-    get: (name) => (name === 'configEditor' ? editor : undefined),
+    get: (name) => {
+      if (name === 'configEditor') return editor
+      if (name === 'credentials') return credentials
+      return undefined
+    },
     inject: (services, callback) => {
       assert.deepEqual(services, ['webServer'])
       callback({
@@ -97,7 +101,7 @@ test('status route returns config snapshot without the token', async () => {
   assert.equal(response.status, 200)
   const data = JSON.parse(response.body)
   assert.equal(data.ok, true)
-  assert.equal(data.configSnapshot.values.hostId, 'host-a')
+  assert.equal(data.configSnapshot.values.gistId, '')
   assert.equal(JSON.stringify(data).includes('secret'), false)
 })
 
@@ -107,14 +111,41 @@ test('config route saves allowed fields through configEditor', async () => {
   const response = fakeResponse()
   await route.handler(request({
     method: 'POST',
-    body: { values: { gistId: '0123456789abcdef', fileName: 'inventory.json', maxInstallsPerRun: 4 } },
+    body: { values: { gistId: '0123456789abcdef' } },
   }), response)
   assert.equal(response.status, 200)
   const data = JSON.parse(response.body)
   assert.equal(data.ok, true)
   assert.equal(state.current.gistId, '0123456789abcdef')
-  assert.equal(state.current.fileName, 'inventory.json')
-  assert.equal(state.current.maxInstallsPerRun, 4)
+  assert.equal(state.current.fileName, undefined)
+  assert.equal(state.current.maxInstallsPerRun, undefined)
+})
+
+test('config route stores a page-entered token in credentials', async () => {
+  const store = { value: '' }
+  const credentials = {
+    async describe() {
+      return { configured: store.value !== '', writable: true, source: store.value === '' ? undefined : 'file' }
+    },
+    async set(ref, value) {
+      assert.equal(ref, 'GITHUB_TOKEN')
+      store.value = value
+    },
+    async unset() {
+      store.value = ''
+    },
+  }
+  const { routes } = createHarness(credentials)
+  const route = routes.get('/dsh-plugin-sync/api/v2/config')
+  const response = fakeResponse()
+  await route.handler(request({
+    method: 'POST',
+    body: { values: { gistId: '0123456789abcdef' }, token: 'ghp_test' },
+  }), response)
+  assert.equal(response.status, 200)
+  assert.equal(store.value, 'ghp_test')
+  const data = JSON.parse(response.body)
+  assert.equal(data.credential.configured, true)
 })
 
 test('config route rejects an invalid Gist id and cross-origin requests', async () => {

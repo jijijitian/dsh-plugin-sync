@@ -8,7 +8,7 @@
 - 点击 **拉取线上清单**，预览冲突和变更，再由你选择是否应用；
 - 需要上传本机清单时，手动点击 **推送本机清单**。
 
-> 2.0.0 起只做手动同步，不再启动自动同步、定时同步或插件变化自动同步。2.2.0 起清单存储从 GitHub 仓库改为私有 Gist。
+> 2.0.0 起只做手动同步，不再启动自动同步、定时同步或插件变化自动同步。2.2.0 起清单存储从 GitHub 仓库改为私有 Gist。2.3.0 起页面配置精简为 **Gist ID + GitHub Token** 两项。
 
 ## 当前版本与 DSH 兼容性
 
@@ -34,10 +34,8 @@ Gist 需要 GitHub token：
 
 - 经典 token 需要 **`gist`** scope；
 - 当前 fine-grained token 对 Gist 的支持有限，建议使用 classic token；
-- 任选一种方式提供：
-  - 环境变量 `GITHUB_TOKEN`；
-  - `tokenEnv` 指定其他环境变量名；
-  - `tokenFile` 指向只包含 token 的文件，例如 `~/.dsh/github-token`。
+- 在插件页的 **GitHub Token** 输入框填写即可，token 会保存到 DSH 的凭据服务，不写入插件配置文件；
+- 如果已有环境变量 `GITHUB_TOKEN`，页面会显示“已配置”，可以留空不修改。
 
 没有 token 时可以读取可访问的 Gist 并预览，但不能创建或推送。
 
@@ -45,7 +43,7 @@ Gist 需要 GitHub token：
 
 ### 1. 第一台主机：创建 Gist
 
-在插件页填写 Token 来源，保持 **Gist ID** 为空，点击 **创建 Gist 并推送本机清单**。
+在插件页填写 **GitHub Token**，保持 **Gist ID** 为空，点击 **创建 Gist 并推送本机清单**。
 
 插件会：
 
@@ -107,17 +105,22 @@ Gist 需要 GitHub token：
 
 ## 配置项
 
-| 键 | 默认 | 说明 |
+插件页只保留两个输入：
+
+| 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `gistId` | `''` | Gist ID 或 `gist.github.com` URL；留空时首次推送自动创建 |
-| `fileName` | `dsh-plugins.json` | Gist 中的清单文件名 |
-| `description` | `DSH plugin inventory` | 创建/更新 Gist 时的描述 |
-| `hostId` | 主机名 | 清单中的主机键 |
-| `tokenEnv` | `GITHUB_TOKEN` | 读取 token 的环境变量 |
-| `tokenFile` | `''` | 读取 token 的文件，支持 `~` |
-| `maxInstallsPerRun` | `20` | 单次应用最多安装/启用数量 |
-| `apiBaseUrl` | `https://api.github.com` | API 地址；页面不暴露 |
-| `token` | `''` | 兼容旧配置的直接 token，页面不返回、不编辑 |
+| `Gist ID` | 空 | 可留空；首次推送自动创建。其他主机粘贴同一个 ID/URL |
+| `GitHub Token` | — | 仅写入 DSH 凭据服务；已配置时可留空 |
+
+其余参数使用固定默认值，不再要求填写：
+
+- 文件名：`dsh-plugins.json`
+- 描述：`DSH plugin inventory`
+- 主机标识：主机名
+- 单次最多安装：20
+- GitHub API：`https://api.github.com`
+
+如果从旧版本保留了隐藏字段（文件名、主机标识等），保存配置时会继续保留；页面不再展示。
 
 ## 清单格式
 
@@ -163,8 +166,8 @@ Gist 需要 GitHub token：
 - Gist 是 **secret**，但仍然是通过 URL 可访问的；不要把 Gist ID 和 token 一起公开。
 - 远端清单是可信输入：它决定安装哪些 npm/GitHub 包，等同于执行第三方代码。请保护 Gist 和 token。
 - 只接受可移植 spec，拒绝本机路径、`file:`、`link:`、`workspace:`、盘符路径和包含 `..` 的路径。
-- Token 不写入清单、Gist、状态文件或页面返回值。
-- 配置 API 只允许修改 Gist ID、文件名、描述、主机标识、token 来源和单次安装上限，不允许通过页面改 `apiBaseUrl`/token 本体。
+- Token 不写入清单、Gist 或插件配置文件；页面输入会写入 DSH 凭据服务。
+- 配置 API 只允许修改 Gist ID，以及把 Token 写入凭据服务；不允许通过页面改 `apiBaseUrl`/token 本体。
 - 只安装用户选择的条目；不自动卸载、禁用或降级本机已有插件。
 - 不执行自动同步：没有启动同步、定时器或插件变化监听。
 
