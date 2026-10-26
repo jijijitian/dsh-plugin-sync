@@ -1,22 +1,22 @@
 # dsh-plugin-sync
 
-通过 GitHub 上一个 JSON 清单，在不同主机之间同步 DeepSeek Harness（DSH）的插件清单：
+通过一个私有 **GitHub Gist** 在不同主机之间同步 DeepSeek Harness（DSH）的插件清单：
 
 - 在 DSH 的 **插件页** 直接修改本插件配置；
-- 点击 **拉取线上清单**，预览要安装/升级/启用的插件；
-- 检查冲突、逐项选择，再点击 **应用同步**；
+- 第一次点击 **创建 Gist 并推送**，插件自动创建私有 Gist；
+- 其他主机只需粘贴同一个 **Gist ID**，不需要再建仓库；
+- 点击 **拉取线上清单**，预览冲突和变更，再由你选择是否应用；
 - 需要上传本机清单时，手动点击 **推送本机清单**。
 
-> 2.0.0 起只做手动同步，不再启动自动同步、定时同步或插件变化自动同步。
+> 2.0.0 起只做手动同步，不再启动自动同步、定时同步或插件变化自动同步。2.2.0 起清单存储从 GitHub 仓库改为私有 Gist。
 
 ## 当前版本与 DSH 兼容性
 
 本版本面向 DSH `0.2.1-rc.3` 的插件页配置槽位：
 
-- `plugins.bundle.config` — 在插件包详情页内嵌本插件的配置和同步面板；
-- `plugins.detail.*` 等新槽位只用于页面扩展，本插件使用 `plugins.bundle.config`。
+- `plugins.bundle.config` — 在插件包详情页内嵌本插件的配置和同步面板。
 
-插件本身没有 npm 运行时依赖；DSH 从 `0.2.1-rc.2` 升到 `0.2.1-rc.3` 后，旧版的 Host 工具和 GitHub 同步逻辑仍然可用，但旧版没有配置页面。2.0.0 补上了新页面的配置/预览/冲突处理，因此需要更新。
+插件本身没有 npm 运行时依赖。DSH 从 `0.2.1-rc.2` 升到 `0.2.1-rc.3` 后，旧版的 Host 工具和同步逻辑仍然可用，但旧版没有配置页面；2.x 补上了新页面的配置/预览/冲突处理。
 
 ## 安装
 
@@ -24,48 +24,54 @@
 plugin_manager action=install_bundle target=github:jijijitian/dsh-plugin-sync
 ```
 
-本地开发也可以安装当前目录：
-
-```text
-plugin_manager action=install_bundle target=<本目录绝对路径>
-```
-
 安装后打开 **插件 → 已安装插件 → dsh-plugin-sync**，即可看到配置与手动同步面板。每台主机都需要先安装一次本插件；它不会自动安装自己。
 
-> **从 1.x 升级或首次启用页面时请重启 DSH。** DSH 的 client-modules 会按 Loader 条目缓存包元数据直到进程重启；如果先安装过没有 `dsh.client` 的 1.0，再安装 2.1，页面不会立即出现配置面板，重启一次后才会扫描到新的客户端半。之后普通刷新页面即可。
+> **从 1.x 升级或首次启用页面时请重启 DSH。** DSH 的 client-modules 会按 Loader 条目缓存包元数据直到进程重启；如果先安装过没有 `dsh.client` 的 1.0，再安装 2.x，页面不会立即出现配置面板，重启一次后才会扫描到新的客户端半。之后普通刷新页面即可。
 
-## 页面使用
+## GitHub Token
 
-### 1. 配置 GitHub 清单
+Gist 需要 GitHub token：
 
-在插件详情页的 **GitHub 清单配置** 中填写：
+- 经典 token 需要 **`gist`** scope；
+- 当前 fine-grained token 对 Gist 的支持有限，建议使用 classic token；
+- 任选一种方式提供：
+  - 环境变量 `GITHUB_TOKEN`；
+  - `tokenEnv` 指定其他环境变量名；
+  - `tokenFile` 指向只包含 token 的文件，例如 `~/.dsh/github-token`。
 
-| 字段 | 说明 |
-| --- | --- |
-| 仓库 | `owner/repository`，例如 `your-name/dsh-plugin-inventory` |
-| 分支 | 默认 `main` |
-| 清单路径 | 默认 `dsh-plugins.json` |
-| 主机标识 | 默认使用主机名；留空使用默认值 |
-| Token 环境变量 | 默认 `GITHUB_TOKEN` |
-| Token 文件 | 也可以指向只包含 token 的文件，例如 `~/.dsh/github-token` |
-| 单次最多安装 | 一次应用最多安装/启用多少个 bundle，默认 20 |
+没有 token 时可以读取可访问的 Gist 并预览，但不能创建或推送。
 
-点击 **保存配置**。保存通过 DSH 的 `configEditor` 写入 profile 的 `cordis.patch.yml`，由 Loader 正常重载插件；不会直接改 package.json。
+## 使用
 
-Token 不会出现在清单或页面返回值中。没有 token 时可以预览公开仓库，但不能推送。
+### 1. 第一台主机：创建 Gist
 
-### 2. 手动拉取与预览
+在插件页填写 Token 来源，保持 **Gist ID** 为空，点击 **创建 Gist 并推送本机清单**。
 
-点击 **拉取线上清单**。这个操作只读 GitHub，不会安装任何东西。返回结果包括：
+插件会：
+
+1. 创建一个 **secret Gist**（不是 public gist）；
+2. 写入默认文件名 `dsh-plugins.json`；
+3. 把本机可移植的 profile bundle 清单写入 `hosts.<hostId>`；
+4. 把 Gist ID 写入本机状态，并尝试保存到插件配置；
+5. 在页面上显示 Gist ID 和 URL。
+
+把 Gist ID 复制到其他主机即可。
+
+### 2. 其他主机：粘贴 Gist ID
+
+在 **Gist ID** 中粘贴同一个 ID（也可以直接粘贴 `https://gist.github.com/...` URL），保存配置，然后点击 **拉取线上清单**。
+
+不需要创建仓库，也不需要创建新的 Gist。
+
+### 3. 预览、冲突与确认
+
+点击 **拉取线上清单** 只读取 Gist，不安装任何东西。页面会显示：
 
 - 线上主机数、插件记录数；
-- 本机缺失、可升级、可启用、线上已停用的条目；
-- 冲突数量与每个冲突的来源主机；
-- 每个条目推荐的默认选择。
+- 缺失、升级、降级、来源变更、启用、本机独有；
+- 冲突数量、来源主机和每个条目的推荐选择。
 
-### 3. 冲突处理规则
-
-同步默认遵循“只增不删、不自动降级”：
+默认冲突规则：
 
 | 情况 | 默认处理 | 可选 |
 | --- | --- | --- |
@@ -78,28 +84,44 @@ Token 不会出现在清单或页面返回值中。没有 token 时可以预览�
 | 只有本机有 | 保留，不处理 | — |
 | 线上已停用 | 不自动停用本机 | — |
 
-冲突不会阻塞整个同步：用户在预览列表里逐项选择后，只有选择 `使用线上` 的条目会执行。`应用同步` 前不会再访问 GitHub，使用的是刚才拉取的预览快照；快照 10 分钟后失效，需要重新拉取。
+只有选择 **使用线上** 的条目会在点击 **应用同步** 时执行。预览快照保留 10 分钟，过期后重新拉取。
 
 ### 4. 应用同步
 
 点击 **应用同步** 后，Host 会：
 
-- 对 `install` / `upgrade` / `spec-change` / `downgrade` 条目调用官方 `ctx.pluginManager.installBundle()`；
-- 对 `enable` 条目调用 `ctx.pluginManager.setBundleEnabled()`；
+- 对安装/升级/来源变更条目调用官方 `ctx.pluginManager.installBundle()`；
+- 对启用条目调用 `ctx.pluginManager.setBundleEnabled()`；
 - 不卸载、不自动禁用本机已有插件；
-- 最多处理 `maxInstallsPerRun` 项，剩余项在结果中标记为跳过。
+- 最多处理 `maxInstallsPerRun` 项。
 
-安装过程中可能出现 `restart-required`，按 DSH 提示重启宿主即可。
+可能出现 `restart-required`，按 DSH 提示重启宿主。
 
 ### 5. 推送本机清单
 
-**云端清单** 区域提供 **推送本机清单**，需要二次确认。它会把本机可移植的 profile bundle 清单写入 `hosts.<hostId>`，供其他主机之后手动拉取。
+已有 Gist 时，点击 **推送本机清单** 会更新 Gist 中的清单文件；需要二次确认。
 
-- 只发布可移植的安装来源；本机路径、`file:`、`link:`、`workspace:` 不会发布。
-- 同一主机重新推送会覆盖自己的记录，不会覆盖其他主机。
-- 内容没有变化时不会创建新 commit。
+- 同一主机重新推送会覆盖自己的 `hosts.<hostId>` 记录，不覆盖其他主机。
+- 内容没有变化时不会更新 Gist。
+- 使用 Gist 的 ETag/版本做条件更新；发现并发变化会重试合并，最多 3 次。
+
+## 配置项
+
+| 键 | 默认 | 说明 |
+| --- | --- | --- |
+| `gistId` | `''` | Gist ID 或 `gist.github.com` URL；留空时首次推送自动创建 |
+| `fileName` | `dsh-plugins.json` | Gist 中的清单文件名 |
+| `description` | `DSH plugin inventory` | 创建/更新 Gist 时的描述 |
+| `hostId` | 主机名 | 清单中的主机键 |
+| `tokenEnv` | `GITHUB_TOKEN` | 读取 token 的环境变量 |
+| `tokenFile` | `''` | 读取 token 的文件，支持 `~` |
+| `maxInstallsPerRun` | `20` | 单次应用最多安装/启用数量 |
+| `apiBaseUrl` | `https://api.github.com` | API 地址；页面不暴露 |
+| `token` | `''` | 兼容旧配置的直接 token，页面不返回、不编辑 |
 
 ## 清单格式
+
+仍然是原来的主机清单，只是存储在 Gist 文件里：
 
 ```json
 {
@@ -127,12 +149,22 @@ Token 不会出现在清单或页面返回值中。没有 token 时可以预览�
 }
 ```
 
+## 从 2.1 的仓库配置迁移
+
+2.2.0 不再读取 `repo` / `branch` / `path`。已有配置里的这些字段在保存配置时会被移除，界面改为 Gist。迁移步骤：
+
+1. 更新插件并重启 DSH；
+2. 在插件页填写 token 来源；
+3. 留空 Gist ID 点击 **创建 Gist 并推送**，或粘贴已有的 Gist ID；
+4. 其他主机粘贴同一个 Gist ID。
+
 ## 安全边界
 
-- 远端清单是可信输入：它决定安装哪些 npm/GitHub 包，等同于执行第三方代码。请使用 private 清单仓库并保护 token。
+- Gist 是 **secret**，但仍然是通过 URL 可访问的；不要把 Gist ID 和 token 一起公开。
+- 远端清单是可信输入：它决定安装哪些 npm/GitHub 包，等同于执行第三方代码。请保护 Gist 和 token。
 - 只接受可移植 spec，拒绝本机路径、`file:`、`link:`、`workspace:`、盘符路径和包含 `..` 的路径。
-- Token 不写入清单、状态文件或页面返回值；日志不打印 token。
-- 配置 API 只允许修改仓库、分支、路径、主机标识、token 来源和单次安装上限，不允许通过页面改 `apiBaseUrl`/token 本体。
+- Token 不写入清单、Gist、状态文件或页面返回值。
+- 配置 API 只允许修改 Gist ID、文件名、描述、主机标识、token 来源和单次安装上限，不允许通过页面改 `apiBaseUrl`/token 本体。
 - 只安装用户选择的条目；不自动卸载、禁用或降级本机已有插件。
 - 不执行自动同步：没有启动同步、定时器或插件变化监听。
 
@@ -144,17 +176,18 @@ node --test
 
 测试覆盖：
 
+- Gist 读取、创建、更新、ETag 冲突、缺失 Gist、截断内容回退；
 - 清单规范化、主机合并、版本选择、主机冲突变体；
 - 安装/升级/降级/来源变更/启用/本机独有的预览分类；
-- 配置读取、保存、token 隐藏和非法仓库拒绝；
+- 配置读取、保存、token 隐藏、Gist ID 规范化；
 - 预览后按选择安装、默认选择安装、无 token 只读同步；
 - 推送、内容不变跳过、非法远端 JSON 不覆盖；
-- 工具结果渲染和客户端语法检查。
+- 工具结果渲染和客户端注册。
 
 ## 已知边界
 
 - 只同步 bundle 的安装清单，不迁移插件配置、模型或凭据。
 - 只处理有 bundle patch 的插件；纯依赖不会成为清单条目。
 - 预览快照只保存在 Host 内存中，插件重载或 10 分钟后失效。
+- Gist API 没有仓库 Contents API 的强原子更新；本插件用 ETag/版本检查降低并发覆盖窗口，但仍建议各主机避免同时推送。
 - 安装依赖 DSH 的 pnpm 路径；缺失时结果会给出 `pnpm-missing`。
-- 不做自动升级；已安装的同名 bundle 只会在用户选择线上版本时重新安装。

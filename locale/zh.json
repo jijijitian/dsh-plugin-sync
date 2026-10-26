@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "插件同步",
-    "description": "在插件页配置 GitHub 清单，手动拉取、检查冲突，并只安装你确认的插件。"
+    "description": "在插件页配置私有 GitHub Gist，手动拉取、检查冲突，并只安装你确认的插件。"
   }
 }

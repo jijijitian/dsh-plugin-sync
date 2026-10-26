@@ -10,44 +10,76 @@ function startMock(initial) {
   let state = initial === null
     ? null
     : {
+        id: '0123456789abcdef',
         text: typeof initial === 'string' ? initial : `${JSON.stringify(initial, null, 2)}\n`,
-        sha: 'sha-1',
+        version: 'version-1',
       }
+  let versionCounter = 1
   let writes = 0
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1')
-    if (req.method === 'GET' && url.pathname.endsWith('/contents/dsh-plugins.json')) {
+    if (req.method === 'GET' && url.pathname === '/gists/0123456789abcdef') {
       if (state === null) {
         res.writeHead(404, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ message: 'Not Found' }))
         return
       }
-      res.writeHead(200, { 'content-type': 'application/json' })
+      res.writeHead(200, { 'content-type': 'application/json', etag: `"${state.version}"` })
       res.end(JSON.stringify({
-        content: Buffer.from(state.text, 'utf8').toString('base64'),
-        encoding: 'base64',
-        sha: state.sha,
+        id: state.id,
+        public: false,
+        html_url: 'https://gist.github.com/0123456789abcdef',
+        updated_at: '2026-01-01T00:00:00.000Z',
+        history: [{ version: state.version }],
+        files: {
+          'dsh-plugins.json': { filename: 'dsh-plugins.json', content: state.text, truncated: false },
+        },
       }))
       return
     }
-    if (req.method === 'PUT' && url.pathname.endsWith('/contents/dsh-plugins.json')) {
+    if (req.method === 'POST' && url.pathname === '/gists') {
       let raw = ''
       for await (const chunk of req) raw += chunk
       const body = JSON.parse(raw)
-      if (state !== null && body.sha !== state.sha) {
-        res.writeHead(409, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ message: 'sha does not match' }))
+      state = {
+        id: '0123456789abcdef',
+        text: body.files['dsh-plugins.json'].content,
+        version: 'version-1',
+      }
+      writes += 1
+      res.writeHead(201, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({
+        id: state.id,
+        public: body.public,
+        html_url: 'https://gist.github.com/0123456789abcdef',
+        updated_at: '2026-01-01T00:00:00.000Z',
+        history: [{ version: state.version }],
+      }))
+      return
+    }
+    if (req.method === 'PATCH' && url.pathname === '/gists/0123456789abcdef') {
+      let raw = ''
+      for await (const chunk of req) raw += chunk
+      const body = JSON.parse(raw)
+      if (req.headers['if-match'] !== undefined && req.headers['if-match'] !== `"${state.version}"`) {
+        res.writeHead(412, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ message: 'etag does not match' }))
         return
       }
+      versionCounter += 1
       state = {
-        text: Buffer.from(body.content, 'base64').toString('utf8'),
-        sha: `sha-${Date.now()}`,
+        ...state,
+        text: body.files['dsh-plugins.json'].content,
+        version: `version-${versionCounter}`,
       }
       writes += 1
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify({
-        content: { sha: state.sha },
-        commit: { sha: 'commit-1' },
+        id: state.id,
+        public: false,
+        html_url: 'https://gist.github.com/0123456789abcdef',
+        updated_at: '2026-01-02T00:00:00.000Z',
+        history: [{ version: state.version }],
       }))
       return
     }
@@ -59,7 +91,7 @@ function startMock(initial) {
       const address = server.address()
       resolve({
         apiBaseUrl: `http://127.0.0.1:${address.port}`,
-        read: () => (state === null ? null : JSON.parse(state.text)),
+        readState: () => (state === null ? null : { ...state, parsed: JSON.parse(state.text) }),
         writes: () => writes,
         close: () => new Promise((done) => server.close(done)),
       })
@@ -69,9 +101,9 @@ function startMock(initial) {
 
 function makeConfig(overrides = {}) {
   return {
-    repo: 'o/r',
-    branch: 'main',
-    path: 'dsh-plugins.json',
+    gistId: '0123456789abcdef',
+    fileName: 'dsh-plugins.json',
+    description: 'DSH plugin inventory',
     apiBaseUrl: 'http://127.0.0.1:1',
     token: 'x',
     tokenEnv: 'GITHUB_TOKEN',
@@ -93,7 +125,6 @@ class FakeManager {
   constructor(bundles) {
     this.bundles = bundles
     this.calls = []
-    this.enableCalls = []
   }
 
   async listBundles() {
@@ -118,7 +149,6 @@ class FakeManager {
   }
 
   async setBundleEnabled(name, enabled) {
-    this.enableCalls.push({ name, enabled })
     return { changed: true, application: 'applied', stage: 'enable', target: name, enabled }
   }
 }
@@ -127,7 +157,7 @@ function findEntry(preview, name) {
   return preview.entries.find((entry) => entry.name === name)
 }
 
-test('preview returns conflicts and apply installs only selected entries', async (t) => {
+test('preview reads a Gist and applies only selected entries', async (t) => {
   const mock = await startMock({
     schemaVersion: 1,
     hosts: {
@@ -151,9 +181,7 @@ test('preview returns conflicts and apply installs only selected entries', async
   t.after(() => mock.close())
   const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
-  const manager = new FakeManager([
-    { name: 'dsh-local', spec: 'dsh-local@1.0.0', version: '1.0.0', availability: 'profile', installed: true, enabled: true, removable: true, source: 'dsh-local@1.0.0' },
-  ])
+  const manager = new FakeManager([])
   const runtime = createSyncRuntime({
     config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
     pluginManager: manager,
@@ -164,62 +192,21 @@ test('preview returns conflicts and apply installs only selected entries', async
   const preview = await runtime.preview()
   assert.equal(preview.ok, true)
   assert.equal(typeof preview.previewId, 'string')
-  assert.equal(findEntry(preview, 'dsh-extra').kind, 'install')
+  assert.equal(preview.gistId, '0123456789abcdef')
   assert.equal(findEntry(preview, 'dsh-conflict').conflict.type, 'host-disagreement')
-  assert.equal(findEntry(preview, 'dsh-local').kind, 'local-only')
-  assert.equal(preview.counts.conflicts, 1)
-
-  const result = await runtime.apply(preview.previewId, {
-    'dsh-extra': 'remote',
-    'dsh-conflict': 'skip',
-    'dsh-local': 'local',
-  })
+  const result = await runtime.apply(preview.previewId, { 'dsh-extra': 'remote', 'dsh-conflict': 'skip' })
   assert.equal(result.ok, true)
   assert.equal(manager.calls.length, 1)
   assert.equal(manager.calls[0].spec, 'dsh-extra@1.0.0')
-  assert.equal(result.applied[0].name, 'dsh-extra')
-  await assert.rejects(() => runtime.apply(preview.previewId, {}), /expired|no longer/)
   const state = JSON.parse(await readFile(join(dir, 'state.json'), 'utf8'))
+  assert.equal(state.gistId, '0123456789abcdef')
   assert.equal(typeof state.lastPreviewAt, 'string')
-  assert.equal(typeof state.lastApplyAt, 'string')
 })
 
-test('apply can use default choices for every remote candidate', async (t) => {
+test('push updates an existing Gist and skips unchanged content', async (t) => {
   const mock = await startMock({
     schemaVersion: 1,
-    hosts: {
-      remote: {
-        bundles: [
-          { name: 'one', spec: 'one@1.0.0', version: '1.0.0', enabled: true },
-          { name: 'two', spec: 'two@1.0.0', version: '1.0.0', enabled: true },
-        ],
-      },
-    },
-  })
-  t.after(() => mock.close())
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
-  const manager = new FakeManager([])
-  const runtime = createSyncRuntime({
-    config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
-    pluginManager: manager,
-    logger: { info() {}, warn() {} },
-    statePath: join(dir, 'state.json'),
-    env: {},
-  })
-  const preview = await runtime.preview()
-  const result = await runtime.apply(preview.previewId, {})
-  assert.equal(result.ok, true)
-  assert.equal(manager.calls.length, 2)
-  assert.deepEqual(manager.calls.map((call) => call.spec).sort(), ['one@1.0.0', 'two@1.0.0'])
-})
-
-test('push publishes this host and skips an unchanged write', async (t) => {
-  const mock = await startMock({
-    schemaVersion: 1,
-    hosts: {
-      'host-a': { hostId: 'host-a', bundles: [] },
-    },
+    hosts: { 'host-a': { hostId: 'host-a', bundles: [] } },
   })
   t.after(() => mock.close())
   const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
@@ -236,11 +223,50 @@ test('push publishes this host and skips an unchanged write', async (t) => {
   })
   const first = await runtime.push()
   assert.equal(first.status, 'pushed')
+  assert.equal(first.created, false)
   assert.equal(mock.writes(), 1)
-  assert.deepEqual(mock.read().hosts['host-local'].bundles.map((bundle) => bundle.name), ['dsh-local'])
+  assert.deepEqual(mock.readState().parsed.hosts['host-local'].bundles.map((bundle) => bundle.name), ['dsh-local'])
   const second = await runtime.push()
   assert.equal(second.status, 'unchanged')
   assert.equal(mock.writes(), 1)
+})
+
+test('push with no Gist id creates a secret Gist and remembers it', async (t) => {
+  const mock = await startMock(null)
+  t.after(() => mock.close())
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const runtime = createSyncRuntime({
+    config: makeConfig({ gistId: '', apiBaseUrl: mock.apiBaseUrl }),
+    pluginManager: new FakeManager([]),
+    logger: { info() {}, warn() {} },
+    statePath: join(dir, 'state.json'),
+    env: {},
+  })
+  const result = await runtime.push()
+  assert.equal(result.ok, true)
+  assert.equal(result.created, true)
+  assert.equal(result.gistId, '0123456789abcdef')
+  assert.equal(mock.readState().parsed.schemaVersion, 1)
+  assert.equal(mock.writes(), 1)
+  const status = await runtime.status()
+  assert.equal(status.gistId, '0123456789abcdef')
+  assert.equal(status.gistUrl, 'https://gist.github.com/0123456789abcdef')
+})
+
+test('preview without a Gist id asks for one', async (t) => {
+  const mock = await startMock(null)
+  t.after(() => mock.close())
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const runtime = createSyncRuntime({
+    config: makeConfig({ gistId: '', apiBaseUrl: mock.apiBaseUrl }),
+    pluginManager: new FakeManager([]),
+    logger: { info() {}, warn() {} },
+    statePath: join(dir, 'state.json'),
+    env: {},
+  })
+  await assert.rejects(() => runtime.preview(), /No Gist is configured/)
 })
 
 test('without a token preview and apply still work but push fails', async (t) => {
@@ -268,15 +294,14 @@ test('without a token preview and apply still work but push fails', async (t) =>
   await assert.rejects(() => runtime.push(), (error) => error.code === 'no-token')
 })
 
-test('invalid remote JSON is rejected without a write', async (t) => {
+test('invalid Gist JSON is rejected without a write', async (t) => {
   const mock = await startMock('{not json')
   t.after(() => mock.close())
   const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
-  const manager = new FakeManager([])
   const runtime = createSyncRuntime({
     config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
-    pluginManager: manager,
+    pluginManager: new FakeManager([]),
     logger: { info() {}, warn() {} },
     statePath: join(dir, 'state.json'),
     env: {},

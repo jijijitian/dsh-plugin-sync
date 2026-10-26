@@ -58,8 +58,13 @@ export function renderToolResult(_args, value) {
     ? `FAILED: ${value.error === undefined ? 'one or more operations failed' : summarizeError(value.error)}`
     : 'OK')
   if (typeof value.hostId === 'string') lines.push(`Host: ${value.hostId}`)
+  if (typeof value.gistId === 'string' && value.gistId !== '') {
+    lines.push(`Gist: ${value.gistId}${typeof value.gistUrl === 'string' ? ` (${value.gistUrl})` : ''}`)
+  } else {
+    lines.push('Gist: not configured')
+  }
   if (isRecord(value.config)) {
-    lines.push(`Repo: ${value.config.repo || '(not configured)'} · ${value.config.branch}/${value.config.path}`)
+    lines.push(`File: ${value.config.fileName ?? 'dsh-plugins.json'}`)
   }
   if (isRecord(value.token)) {
     lines.push(`Token: ${value.token.configured === true ? `configured (${value.token.source})` : 'not configured'}`)
@@ -91,7 +96,7 @@ export function renderToolResult(_args, value) {
     }
   }
   if (typeof value.status === 'string' && value.action === 'push') {
-    lines.push(`Push: ${value.status}${value.commit ? ` (${shortSha(value.commit)})` : ''}`)
+    lines.push(`Push: ${value.status}${value.version ? ` (${shortSha(value.version)})` : ''}`)
   }
   if (isRecord(value.remote) && value.remote.hostCount !== undefined) {
     lines.push(`Remote: ${value.remote.hostCount} host(s), ${value.remote.bundleCount} bundle record(s)`)
@@ -112,10 +117,11 @@ export function apply(ctx, rawConfig) {
   ctx.effect(() => ctx.tools.register({
     name: 'plugin_sync',
     description:
-      'Preview and apply a GitHub-hosted DSH plugin manifest. Manual only: no background sync. '
-      + '`preview` fetches the remote manifest and returns install/upgrade/downgrade/enable entries plus conflicts; '
-      + '`apply` installs only the entries the caller selects from that preview; `push` uploads this host\'s portable inventory; '
-      + '`status` reports config and last-run state. The same operations are available in the plugin page.',
+      'Preview and apply a GitHub Gist plugin manifest. Manual only: no background sync. '
+      + '`preview` fetches the Gist and returns install/upgrade/downgrade/enable entries plus conflicts; '
+      + '`apply` installs only the entries the caller selects from that preview; `push` uploads this host\'s portable inventory '
+      + '(creating a secret Gist when no Gist id is configured); `status` reports config and last-run state. '
+      + 'The same operations are available in the plugin page.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -186,9 +192,9 @@ export function apply(ctx, rawConfig) {
 
   if (config.configError !== undefined) {
     runtime.log('warn', config.configError)
-  } else if (config.repo === '') {
-    runtime.log('info', 'config.repo is empty; configure it in the plugin page before syncing')
+  } else if (config.gistId === '') {
+    runtime.log('info', 'no Gist id configured; push once to create a secret Gist')
   } else if (!runtime.tokenConfigured) {
-    runtime.log('info', 'no GitHub token configured; preview works for public repositories, push is unavailable')
+    runtime.log('info', 'no GitHub token configured; preview works for an accessible Gist, push is unavailable')
   }
 }

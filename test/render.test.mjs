@@ -7,7 +7,9 @@ test('status rendering handles an empty last run', () => {
     ok: true,
     action: 'status',
     hostId: 'host-a',
-    config: { repo: 'o/r', branch: 'main', path: 'dsh-plugins.json' },
+    config: { gistId: '0123456789abcdef', fileName: 'dsh-plugins.json' },
+    gistId: '0123456789abcdef',
+    gistUrl: 'https://gist.github.com/0123456789abcdef',
     token: { configured: false, source: null },
     local: { profileBundles: 2, portableBundles: 1 },
     state: { lastPreviewAt: '2026-01-01T00:00:00.000Z', remote: null, lastResults: [] },
@@ -57,20 +59,20 @@ test('apply rendering lists installed and failed entries', () => {
   assert.match(blocks[0].text, /! two: boom/)
 })
 
-test('normalizeConfig derives a host id and rejects invalid repos', () => {
-  const valid = normalizeConfig({ repo: 'https://github.com/o/r.git' })
-  assert.equal(valid.repo, 'o/r')
+test('normalizeConfig derives a host id and rejects invalid Gist ids', () => {
+  const valid = normalizeConfig({ gistId: '0123456789abcdef' })
+  assert.equal(valid.gistId, '0123456789abcdef')
   assert.ok(valid.hostId.length > 0)
-  const invalid = normalizeConfig({ repo: 'not a repo' })
-  assert.equal(invalid.repo, '')
-  assert.match(invalid.configError, /owner\/repository/)
+  const invalid = normalizeConfig({ gistId: 'not an id' })
+  assert.equal(invalid.gistId, '')
+  assert.match(invalid.configError, /Gist id/)
 })
 
 test('normalizeConfig rejects insecure non-loopback API URLs', () => {
-  const config = normalizeConfig({ repo: 'o/r', apiBaseUrl: 'http://example.com/api' })
+  const config = normalizeConfig({ gistId: '0123456789abcdef', apiBaseUrl: 'http://example.com/api' })
   assert.equal(config.apiBaseUrl, 'https://api.github.com')
   assert.match(config.configError, /plain HTTP/)
-  const loopback = normalizeConfig({ repo: 'o/r', apiBaseUrl: 'http://127.0.0.1:1234' })
+  const loopback = normalizeConfig({ gistId: '0123456789abcdef', apiBaseUrl: 'http://127.0.0.1:1234' })
   assert.equal(loopback.apiBaseUrl, 'http://127.0.0.1:1234')
   assert.equal(loopback.configError, undefined)
 })

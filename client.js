@@ -6,17 +6,17 @@ window.__ModuleLoader__.load({
     const NS = 'dsh-plugin-sync'
 
     const zh = {
-      summary: '配置 GitHub 清单，手动拉取并应用插件变更。',
-      configTitle: 'GitHub 清单配置',
-      configHint: '保存后会重新加载插件。仓库建议使用 private 仓库。',
-      fieldRepo: '仓库',
-      fieldRepoHint: 'owner/repository，例如 jijijitian/dsh-plugin-inventory',
-      fieldBranch: '分支',
-      fieldPath: '清单路径',
+      summary: '配置 GitHub Gist 清单，手动拉取并应用插件变更。',
+      configTitle: 'GitHub Gist 配置',
+      configHint: '保存后会重新加载插件。清单保存在私有 Gist 中。',
+      fieldGistId: 'Gist ID',
+      fieldGistIdHint: '留空时由“创建 Gist 并推送”自动创建；其他主机填写同一个 Gist ID。',
+      fieldFileName: '清单文件名',
+      fieldDescription: 'Gist 描述',
       fieldHostId: '主机标识',
       fieldHostIdHint: '默认使用主机名；留空则使用默认值。',
       fieldTokenEnv: 'Token 环境变量',
-      fieldTokenEnvHint: '从该环境变量读取 GitHub token。',
+      fieldTokenEnvHint: '从该环境变量读取 GitHub token（classic token 需要 gist 权限）。',
       fieldTokenFile: 'Token 文件',
       fieldTokenFileHint: '也可以指向只包含 token 的文件，例如 ~/.dsh/github-token。',
       fieldMaxInstalls: '单次最多安装',
@@ -25,8 +25,9 @@ window.__ModuleLoader__.load({
       saved: '已保存，插件正在重新加载。',
       configUnavailable: '当前 Host 没有可用的配置编辑器，无法保存配置。',
       tokenConfigured: 'Token 已配置（{source}）',
-      tokenMissing: '未配置 Token：可预览公开仓库，但不能推送。',
-      repoMissing: '请先填写仓库并保存。',
+      tokenMissing: '未配置 Token：可预览公开 Gist，但不能创建或推送。',
+      gistMissing: '请先创建 Gist，或填写已有 Gist ID。',
+      saveGistFirst: 'Gist ID 已修改，请先保存配置再同步。',
       localInfo: '本机 {profile} 个插件，其中 {portable} 个可移植。',
       manualTitle: '手动同步',
       manualHint: '点击“拉取线上清单”后，先预览变更和冲突；只有点击“应用同步”才会安装。不会自动同步。',
@@ -70,15 +71,19 @@ window.__ModuleLoader__.load({
       failedTitle: '失败',
       skippedTitle: '跳过',
       restartRequired: '需要重启生效',
-      pushTitle: '云端清单',
-      pushHint: '把本机可移植的插件清单推送到 GitHub，供其他主机手动拉取。',
+      pushTitle: 'Gist 清单',
+      pushHint: '把本机可移植的插件清单推送/创建到私有 Gist，供其他主机手动拉取。',
       push: '推送本机清单',
-      pushConfirm: '推送会更新远程清单文件，确认推送？',
+      pushCreating: '创建 Gist 并推送本机清单',
+      pushConfirm: '推送会更新 Gist 中的清单文件，确认推送？',
+      pushConfirmCreate: '当前没有 Gist ID。确认创建私有 Gist 并推送本机清单？',
       pushConfirmButton: '确认推送',
       pushCancel: '取消',
       pushing: '正在推送…',
-      pushPushed: '已推送（{commit}）',
-      pushUnchanged: '云端清单已是最新。',
+      pushCreated: '已创建 Gist（{gistId}）。请复制到其他主机。',
+      pushPushed: '已推送（{version}）',
+      pushUnchanged: 'Gist 清单已是最新。',
+      gistLabel: 'Gist：{gistId}',
       lastPreview: '上次拉取：{time}',
       lastApply: '上次应用：{time}',
       lastPush: '上次推送：{time}',
@@ -93,17 +98,17 @@ window.__ModuleLoader__.load({
     }
 
     const en = {
-      summary: 'Configure the GitHub manifest and pull/apply plugin changes manually.',
-      configTitle: 'GitHub manifest',
-      configHint: 'Saving reloads the plugin. A private repository is recommended.',
-      fieldRepo: 'Repository',
-      fieldRepoHint: 'owner/repository, for example jijijitian/dsh-plugin-inventory',
-      fieldBranch: 'Branch',
-      fieldPath: 'Manifest path',
+      summary: 'Configure a GitHub Gist manifest and pull/apply plugin changes manually.',
+      configTitle: 'GitHub Gist',
+      configHint: 'Saving reloads the plugin. The manifest lives in a secret Gist.',
+      fieldGistId: 'Gist ID',
+      fieldGistIdHint: 'Leave blank to create one with “Create Gist and push”; other hosts paste the same Gist ID.',
+      fieldFileName: 'Manifest file name',
+      fieldDescription: 'Gist description',
       fieldHostId: 'Host id',
       fieldHostIdHint: 'Defaults to the hostname; leave blank to use the default.',
       fieldTokenEnv: 'Token env var',
-      fieldTokenEnvHint: 'Read the GitHub token from this environment variable.',
+      fieldTokenEnvHint: 'Read the GitHub token from this environment variable (classic token needs the gist scope).',
       fieldTokenFile: 'Token file',
       fieldTokenFileHint: 'Or point to a file containing only the token, for example ~/.dsh/github-token.',
       fieldMaxInstalls: 'Max installs per apply',
@@ -112,12 +117,13 @@ window.__ModuleLoader__.load({
       saved: 'Saved. The plugin is reloading.',
       configUnavailable: 'This Host has no configuration editor, so the configuration cannot be saved.',
       tokenConfigured: 'Token configured ({source})',
-      tokenMissing: 'No token: public repositories can be previewed, but push is unavailable.',
-      repoMissing: 'Set a repository and save first.',
+      tokenMissing: 'No token: public Gists can be previewed, but create/push is unavailable.',
+      gistMissing: 'Create a Gist first, or paste an existing Gist ID.',
+      saveGistFirst: 'The Gist ID changed. Save the configuration before syncing.',
       localInfo: '{profile} local bundles, {portable} portable.',
       manualTitle: 'Manual sync',
-      manualHint: 'Pull the remote manifest, review changes and conflicts, then click Apply. Nothing installs until you apply. There is no automatic sync.',
-      pull: 'Pull remote manifest',
+      manualHint: 'Pull the Gist manifest, review changes and conflicts, then click Apply. Nothing installs until you apply. There is no automatic sync.',
+      pull: 'Pull Gist manifest',
       pulling: 'Pulling…',
       refresh: 'Pull again',
       apply: 'Apply sync',
@@ -126,7 +132,7 @@ window.__ModuleLoader__.load({
       noChanges: 'There are no changes to apply.',
       conflictCount: '{count} conflict(s)',
       actionableCount: '{count} actionable',
-      previewSummary: 'Remote: {hosts} host(s) / {bundles} bundle record(s); {actionable} actionable, {conflicts} conflict(s).',
+      previewSummary: 'Gist: {hosts} host(s) / {bundles} bundle record(s); {actionable} actionable, {conflicts} conflict(s).',
       conflictRules: 'Conflict policy: only add or upgrade; a newer remote version is selected by default; an older remote version or a same-version/different-source entry keeps the local copy; host disagreements default to the highest version. Each row can be changed.',
       kindInstall: 'Missing',
       kindUpgrade: 'Upgrade',
@@ -157,15 +163,19 @@ window.__ModuleLoader__.load({
       failedTitle: 'Failed',
       skippedTitle: 'Skipped',
       restartRequired: 'Restart required',
-      pushTitle: 'Remote manifest',
-      pushHint: 'Publish this host\'s portable inventory to GitHub so other hosts can pull it.',
+      pushTitle: 'Gist manifest',
+      pushHint: 'Publish this host\'s portable inventory to a secret Gist so other hosts can pull it.',
       push: 'Push local inventory',
-      pushConfirm: 'This updates the remote manifest. Push now?',
+      pushCreating: 'Create Gist and push local inventory',
+      pushConfirm: 'This updates the manifest file in the Gist. Push now?',
+      pushConfirmCreate: 'No Gist ID is configured. Create a secret Gist and push this host\'s inventory?',
       pushConfirmButton: 'Confirm push',
       pushCancel: 'Cancel',
       pushing: 'Pushing…',
-      pushPushed: 'Pushed ({commit})',
-      pushUnchanged: 'The remote manifest is already up to date.',
+      pushCreated: 'Created Gist ({gistId}). Copy this ID to the other hosts.',
+      pushPushed: 'Pushed ({version})',
+      pushUnchanged: 'The Gist manifest is already up to date.',
+      gistLabel: 'Gist: {gistId}',
       lastPreview: 'Last pull: {time}',
       lastApply: 'Last apply: {time}',
       lastPush: 'Last push: {time}',
@@ -182,6 +192,7 @@ window.__ModuleLoader__.load({
     const CSS = `
 .dsh-ps{box-sizing:border-box;width:100%;display:flex;flex-direction:column;gap:16px;color:var(--dsw-alias-label-primary)}
 .dsh-ps *{box-sizing:border-box}
+.dsh-ps a{color:var(--dsw-alias-brand-primary);text-decoration:none;overflow-wrap:anywhere}
 .dsh-ps-card{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);padding:16px;display:flex;flex-direction:column;gap:12px}
 .dsh-ps-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
 .dsh-ps-title{margin:0;font-size:15px;line-height:22px;font-weight:600}
@@ -226,9 +237,9 @@ window.__ModuleLoader__.load({
 `
 
     const FIELDS = [
-      { key: 'repo', label: 'fieldRepo', hint: 'fieldRepoHint', placeholder: 'owner/dsh-plugin-inventory' },
-      { key: 'branch', label: 'fieldBranch', hint: null, placeholder: 'main' },
-      { key: 'path', label: 'fieldPath', hint: null, placeholder: 'dsh-plugins.json' },
+      { key: 'gistId', label: 'fieldGistId', hint: 'fieldGistIdHint', placeholder: 'Gist ID or gist.github.com URL' },
+      { key: 'fileName', label: 'fieldFileName', hint: null, placeholder: 'dsh-plugins.json' },
+      { key: 'description', label: 'fieldDescription', hint: null, placeholder: 'DSH plugin inventory' },
       { key: 'hostId', label: 'fieldHostId', hint: 'fieldHostIdHint', placeholder: '' },
       { key: 'tokenEnv', label: 'fieldTokenEnv', hint: 'fieldTokenEnvHint', placeholder: 'GITHUB_TOKEN' },
       { key: 'tokenFile', label: 'fieldTokenFile', hint: 'fieldTokenFileHint', placeholder: '~/.dsh/github-token' },
@@ -334,6 +345,9 @@ window.__ModuleLoader__.load({
           const data = await call('status')
           setStatus(data)
           setDraft(data.configSnapshot?.values ?? {})
+          if (typeof data.configError === 'string' && data.configError !== '') {
+            setError(data.configError)
+          }
         } catch (failure) {
           setError(t('loadFailed', { message: failure.message }))
         } finally {
@@ -350,7 +364,13 @@ window.__ModuleLoader__.load({
       const configSnapshot = status?.configSnapshot
       const values = draft ?? configSnapshot?.values ?? {}
       const editable = configSnapshot?.editable === true
-      const repo = typeof values.repo === 'string' ? values.repo : ''
+      const draftGistId = typeof values.gistId === 'string' ? values.gistId : ''
+      const savedGistId = typeof configSnapshot?.values?.gistId === 'string' ? configSnapshot.values.gistId : ''
+      const effectiveGistId = draftGistId !== '' ? draftGistId : (status?.gistId ?? '')
+      const gistConfigured = effectiveGistId !== ''
+      const gistDirty = draftGistId !== savedGistId
+      const canOperate = gistConfigured && !gistDirty
+      const gistUri = status?.gistUrl ?? null
       const token = status?.token
       const state = status?.state
       const lastPreview = state?.lastPreviewAt
@@ -423,9 +443,24 @@ window.__ModuleLoader__.load({
         try {
           const data = await call('push', { method: 'POST', body: { confirm: true } })
           setPushResult(data)
-          setMessage(data.status === 'pushed' ? t('pushPushed', { commit: (data.commit ?? '').slice(0, 12) }) : t('pushUnchanged'))
+          if (typeof data.gistId === 'string' && data.gistId !== '') {
+            setDraft((current) => ({ ...(current ?? values), gistId: data.gistId }))
+            if (data.created === true) {
+              try {
+                await call('config', { method: 'POST', body: { values: { gistId: data.gistId } } })
+              } catch {
+                // The id is still available from the status/state fallback.
+              }
+            }
+          }
+          setMessage(data.created === true
+            ? t('pushCreated', { gistId: data.gistId ?? '' })
+            : data.status === 'pushed'
+              ? t('pushPushed', { version: (data.version ?? '').slice(0, 12) })
+              : t('pushUnchanged'))
           setConfirmPush(false)
           void loadStatus()
+          setTimeout(() => { void loadStatus() }, 1200)
         } catch (failure) {
           setError(t('actionFailed', { message: failure.message }))
         } finally {
@@ -509,8 +544,14 @@ window.__ModuleLoader__.load({
             ),
           ),
           h('div', { className: 'dsh-ps-summary' },
-            h('span', { className: `dsh-ps-badge ${repo === '' ? 'warn' : 'ok'}` },
-              repo === '' ? t('notConfigured') : repo),
+            h('span', { className: `dsh-ps-badge ${gistConfigured ? 'ok' : 'warn'}` },
+              gistConfigured ? t('gistLabel', { gistId: effectiveGistId }) : t('notConfigured')),
+            gistUri === null || gistDirty ? null : h('a', {
+              className: 'dsh-ps-muted',
+              href: gistUri,
+              target: '_blank',
+              rel: 'noreferrer',
+            }, gistUri),
             h('span', { className: 'dsh-ps-muted' }, t('lastPreview', { time: lastPreview ?? t('never') })),
             h('span', { className: 'dsh-ps-muted' }, t('lastApply', { time: lastApply ?? t('never') })),
           ),
@@ -518,7 +559,7 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'dsh-ps-btn primary',
-              disabled: previewing || repo === '',
+              disabled: previewing || !canOperate,
               onClick: () => { void pullPreview() },
             }, previewing ? t('pulling') : (preview === null ? t('pull') : t('refresh'))),
             preview === null ? null : h('button', {
@@ -528,7 +569,9 @@ window.__ModuleLoader__.load({
               onClick: () => { setPreview(null); setApplyResult(null) },
             }, t('discard')),
           ),
-          repo === '' ? h('div', { className: 'dsh-ps-alert' }, t('repoMissing')) : null,
+          !gistConfigured
+            ? h('div', { className: 'dsh-ps-alert' }, t('gistMissing'))
+            : gistDirty ? h('div', { className: 'dsh-ps-alert' }, t('saveGistFirst')) : null,
           preview === null ? null : h(React.Fragment, null,
             h('div', { className: 'dsh-ps-summary' },
               h('span', { className: 'dsh-ps-badge' }, t('previewSummary', {
@@ -623,12 +666,14 @@ window.__ModuleLoader__.load({
             h('span', { className: 'dsh-ps-muted' }, t('lastPush', { time: lastPush ?? t('never') })),
           ),
           pushResult === null ? null : h('div', { className: 'dsh-ps-ok' },
-            pushResult.status === 'pushed'
-              ? t('pushPushed', { commit: (pushResult.commit ?? '').slice(0, 12) })
-              : t('pushUnchanged')),
+            pushResult.created === true
+              ? t('pushCreated', { gistId: pushResult.gistId ?? '' })
+              : pushResult.status === 'pushed'
+                ? t('pushPushed', { version: (pushResult.version ?? '').slice(0, 12) })
+                : t('pushUnchanged')),
           confirmPush
             ? h('div', { className: 'dsh-ps-confirm' },
-                h('span', { className: 'dsh-ps-desc' }, t('pushConfirm')),
+                h('span', { className: 'dsh-ps-desc' }, gistConfigured ? t('pushConfirm') : t('pushConfirmCreate')),
                 h('div', { className: 'dsh-ps-actions' },
                   h('button', {
                     type: 'button',
@@ -648,9 +693,9 @@ window.__ModuleLoader__.load({
                 h('button', {
                   type: 'button',
                   className: 'dsh-ps-btn',
-                  disabled: pushing || repo === '' || token?.configured !== true,
+                  disabled: pushing || token?.configured !== true || gistDirty,
                   onClick: () => { setConfirmPush(true) },
-                }, pushing ? t('pushing') : t('push')),
+                }, pushing ? t('pushing') : (gistConfigured ? t('push') : t('pushCreating'))),
               ),
         ),
       )

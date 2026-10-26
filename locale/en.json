@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Plugin Sync",
-    "description": "Configure the GitHub manifest in the plugin page, pull it manually, review conflicts, then install only what you select."
+    "description": "Configure a secret GitHub Gist in the plugin page, pull it manually, review conflicts, then install only what you select."
   }
 }

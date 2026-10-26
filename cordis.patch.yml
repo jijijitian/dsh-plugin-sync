@@ -3,9 +3,9 @@
     - id: dsh-plugin-sync
       name: dsh-plugin-sync
       config:
-        repo: ''
-        branch: main
-        path: dsh-plugins.json
+        gistId: ''
+        fileName: dsh-plugins.json
+        description: DSH plugin inventory
         hostId: ''
         tokenEnv: GITHUB_TOKEN
         tokenFile: ''

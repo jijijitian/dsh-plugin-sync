@@ -8,9 +8,9 @@ function createHarness() {
   const registrations = []
   const state = {
     current: {
-      repo: '',
-      branch: 'main',
-      path: 'dsh-plugins.json',
+      gistId: '',
+      fileName: 'dsh-plugins.json',
+      description: 'DSH plugin inventory',
       hostId: 'host-a',
       tokenEnv: 'GITHUB_TOKEN',
       tokenFile: '',
@@ -22,7 +22,7 @@ function createHarness() {
     configuration() {
       return [{
         entry: { options: { id: 'dsh-plugin-sync', config: state.current } },
-        inherited: { repo: '' },
+        inherited: { gistId: '' },
         override: {},
       }]
     },
@@ -51,7 +51,7 @@ function createHarness() {
   const config = normalizeConfig(state.current)
   const runtime = {
     async status() {
-      return { ok: true, configured: false, config: { repo: '' }, token: { configured: false }, local: null, state: {} }
+      return { ok: true, configured: false, gistId: '', config: { gistId: '' }, token: { configured: false }, local: null, state: {} }
     },
   }
   registerApiRoutes({ ctx, runtime, config })
@@ -107,23 +107,23 @@ test('config route saves allowed fields through configEditor', async () => {
   const response = fakeResponse()
   await route.handler(request({
     method: 'POST',
-    body: { values: { repo: 'owner/repo', branch: 'dev', maxInstallsPerRun: 4 } },
+    body: { values: { gistId: '0123456789abcdef', fileName: 'inventory.json', maxInstallsPerRun: 4 } },
   }), response)
   assert.equal(response.status, 200)
   const data = JSON.parse(response.body)
   assert.equal(data.ok, true)
-  assert.equal(state.current.repo, 'owner/repo')
-  assert.equal(state.current.branch, 'dev')
+  assert.equal(state.current.gistId, '0123456789abcdef')
+  assert.equal(state.current.fileName, 'inventory.json')
   assert.equal(state.current.maxInstallsPerRun, 4)
 })
 
-test('config route rejects an invalid repository and cross-origin requests', async () => {
+test('config route rejects an invalid Gist id and cross-origin requests', async () => {
   const { routes } = createHarness()
   const route = routes.get('/dsh-plugin-sync/api/v2/config')
   const bad = fakeResponse()
-  await route.handler(request({ method: 'POST', body: { values: { repo: 'not a repo' } } }), bad)
+  await route.handler(request({ method: 'POST', body: { values: { gistId: 'not an id' } } }), bad)
   assert.equal(bad.status, 400)
-  assert.match(bad.body, /owner\/repository/)
+  assert.match(bad.body, /Gist id/)
 
   const crossed = fakeResponse()
   await route.handler(request({ method: 'GET', origin: 'https://evil.example' }), crossed)

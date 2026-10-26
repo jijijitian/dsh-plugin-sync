@@ -1,12 +1,14 @@
 # dsh-plugin-sync
 
-Manual GitHub plugin-inventory sync for DeepSeek Harness (DSH). Configure it inside the plugin page, pull the remote manifest, review changes and conflicts, then install only what you select.
+Manual plugin-inventory sync for DeepSeek Harness (DSH) through a private **GitHub Gist**. Configure it inside the plugin page, pull the Gist, review changes and conflicts, then install only what you select.
 
-> Version 2.0.0 is manual only: no startup sync, interval sync, or plugin-change sync.
+> Version 2.2.0 uses a secret Gist instead of a GitHub repository. Version 2.0.0 is manual only: no startup sync, interval sync, or plugin-change sync.
 
 ## DSH compatibility
 
-This version targets DSH `0.2.1-rc.3` and registers `plugins.bundle.config`, which places the form on the plugin bundle's own page. The Host half has no npm runtime dependencies. Upgrading from the 1.0.0 Host-only version is required to get the new configuration page.
+Targets DSH `0.2.1-rc.3` and registers `plugins.bundle.config`, which places the form on the plugin bundle's own page. The Host half has no npm runtime dependencies.
+
+> **Restart DSH once when upgrading from 1.x or enabling the page for the first time.** DSH's client-modules caches package metadata per Loader entry until the process restarts. After that, normal updates only need a page refresh.
 
 ## Install
 
@@ -14,43 +16,43 @@ This version targets DSH `0.2.1-rc.3` and registers `plugins.bundle.config`, whi
 plugin_manager action=install_bundle target=github:jijijitian/dsh-plugin-sync
 ```
 
-Open **Plugins → Installed plugins → dsh-plugin-sync** after installation. Every host must install this plugin once; it does not install itself.
-
-> **Restart DSH once when upgrading from 1.x or enabling the page for the first time.** DSH's client-modules caches package metadata per Loader entry until the process restarts. If the 1.0 Host-only version was installed first, the 2.1 client half is not discovered until that restart; after that, normal updates only need a page refresh.
-
 ## Use
 
-1. **Configure**: repository (`owner/repo`), branch, manifest path, host id, token env var or token file, and the per-apply install limit. Save through the page; DSH writes the profile patch through `configEditor` and reloads the plugin.
-2. **Pull**: click **Pull remote manifest**. This only reads GitHub and stores a preview. Nothing is installed.
-3. **Resolve conflicts**: each row has a choice:
+1. **Token**: use a classic GitHub token with the `gist` scope through `GITHUB_TOKEN`, `tokenEnv`, or `tokenFile`.
+2. **First host**: leave **Gist ID** empty and click **Create Gist and push local inventory**. The plugin creates a secret Gist, writes `dsh-plugins.json`, stores the Gist ID locally, and saves it to the configuration when possible.
+3. **Other hosts**: paste the same Gist ID or `https://gist.github.com/...` URL. No repository or new Gist is needed.
+4. **Pull**: click **Pull Gist manifest**. This only reads the Gist and stores a 10-minute preview.
+5. **Resolve conflicts** per row:
    - missing remote bundle → use remote or skip;
    - newer remote version → upgrade or keep local;
-   - older remote version → keep local by default (never downgrade silently);
+   - older remote version → keep local by default (no silent downgrade);
    - same version but different source → keep local by default;
    - installed but disabled locally → keep disabled or enable;
    - hosts disagree on version/source → use the highest version, keep local, or skip.
-4. **Apply**: only rows set to **use remote** are installed or enabled. The Host calls `pluginManager.installBundle()` / `setBundleEnabled()`. Nothing is removed or disabled. The preview is valid for 10 minutes.
-5. **Push**: **Push local inventory** publishes this host's portable profile bundles under `hosts.<hostId>`, after a confirmation. Local paths and `file:`/`link:`/`workspace:` specs are excluded; unchanged content creates no commit.
+6. **Apply**: only rows set to **use remote** are installed or enabled. Nothing is removed or disabled.
+7. **Push**: **Push local inventory** updates the Gist after a confirmation. Unchanged content creates no update. The client sends an ETag and retries a conflicting update by merging again.
 
-## Configuration keys
+## Configuration
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `repo` | `''` | GitHub `owner/repository` |
-| `branch` | `main` | Manifest branch |
-| `path` | `dsh-plugins.json` | Manifest path in the repository |
+| `gistId` | `''` | Gist ID or `gist.github.com` URL; empty creates one on first push |
+| `fileName` | `dsh-plugins.json` | Manifest file name in the Gist |
+| `description` | `DSH plugin inventory` | Gist description on create/update |
 | `hostId` | hostname | Host key in the manifest |
 | `tokenEnv` | `GITHUB_TOKEN` | Environment variable holding the token |
 | `tokenFile` | `''` | File holding the token, supports `~` |
 | `maxInstallsPerRun` | `20` | Maximum installs/enables per apply |
-| `token` | `''` | Legacy direct token; preserved but not exposed or editable in the page |
 | `apiBaseUrl` | `https://api.github.com` | API endpoint; not editable in the page |
+| `token` | `''` | Legacy direct token; preserved but hidden |
 
-A token is required to push. Preview works against public repositories without one.
+## Migration from the 2.1 repository configuration
+
+`repo`, `branch`, and `path` are no longer read and are removed when the configuration is saved. Update the plugin, restart DSH, then either create a Gist with an empty Gist ID or paste an existing Gist ID.
 
 ## Security
 
-The remote manifest is trusted input because it selects packages that run with your permissions. Use a private manifest repository and protect the token. The plugin rejects local filesystem specs, never returns the token to the browser, never writes it into the manifest or state file, and never auto-removes or auto-downgrades plugins.
+The Gist is secret but still reachable by URL; do not publish its ID together with the token. The remote manifest is trusted input because it selects packages that run with your permissions. The plugin rejects local filesystem specs, never returns the token to the browser, never writes it into the manifest/Gist/state, and never auto-removes or auto-downgrades plugins.
 
 ## Development
 
@@ -58,6 +60,6 @@ The remote manifest is trusted input because it selects packages that run with y
 node --test
 ```
 
-Tests cover manifest merging, conflict-aware preview classification, config read/write and token hiding, selective apply, push/unchanged behavior, invalid remote JSON, and tool rendering.
+Tests cover Gist read/create/update, ETag conflicts, truncated content, manifest merging, conflict-aware preview, config read/write and token hiding, selective apply, push/unchanged behavior, invalid remote JSON, and tool rendering.
 
 See [README.md](README.md) for the full Chinese documentation and conflict table.
