@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-sync",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "Manual GitHub plugin inventory sync with an in-page configuration form and conflict-aware preview.",
   "type": "module",
@@ -31,8 +31,7 @@
       "platform": "web",
       "immediately": true,
       "inject": [
-        "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-plugin-manager"
+        "@deepseek-ai/dsh-client-locale"
       ]
     }
   },
