@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { normalizeConfig, renderToolResult } from '../index.js'
 
-test('status rendering handles an empty lastRun', () => {
+test('status rendering handles an empty last run', () => {
   const blocks = renderToolResult({ action: 'status' }, {
     ok: true,
     action: 'status',
@@ -10,39 +10,56 @@ test('status rendering handles an empty lastRun', () => {
     config: { repo: 'o/r', branch: 'main', path: 'dsh-plugins.json' },
     token: { configured: false, source: null },
     local: { profileBundles: 2, portableBundles: 1 },
-    state: { lastRun: null, remote: null, lastResults: [] },
+    state: { lastPreviewAt: '2026-01-01T00:00:00.000Z', remote: null, lastResults: [] },
     statePath: 'C:/state.json',
   })
   assert.equal(blocks.length, 1)
   assert.match(blocks[0].text, /Plugin Sync — status/)
   assert.match(blocks[0].text, /Token: not configured/)
-  assert.doesNotMatch(blocks[0].text, /Last run:/)
+  assert.match(blocks[0].text, /Last preview: 2026-01-01/)
 })
 
-test('sync rendering includes install outcomes', () => {
-  const blocks = renderToolResult({ action: 'sync' }, {
+test('preview rendering includes conflicts and actions', () => {
+  const blocks = renderToolResult({ action: 'preview' }, {
     ok: true,
-    action: 'sync',
-    hostId: 'host-a',
-    push: { status: 'pushed', commit: 'abcdef1234567890', attempts: 1 },
-    pull: { status: 'merged', sha: 'abcdef1234567890' },
-    remote: { hostCount: 1, bundleCount: 1, hosts: [{ hostId: 'a', bundles: 1, updatedAt: '2026-01-01T00:00:00.000Z' }] },
-    install: {
-      dryRun: false,
-      plannedTotal: 1,
-      installed: [{ name: 'pkg', status: 'installed', application: 'applied' }],
-      failed: [],
-      skipped: [],
-    },
+    action: 'preview',
+    previewId: 'preview-1',
+    counts: { actionable: 1, conflicts: 1, localOnly: 0 },
+    entries: [
+      {
+        id: 'pkg',
+        name: 'pkg',
+        kind: 'upgrade',
+        local: { version: '1.0.0' },
+        remote: { version: '2.0.0', hosts: ['host-a'] },
+        conflict: { type: 'host-disagreement' },
+        defaultChoice: 'remote',
+      },
+    ],
+    remote: { hostCount: 1, bundleCount: 1 },
   })
-  assert.match(blocks[0].text, /pushed abcdef123456/)
-  assert.match(blocks[0].text, /\+ pkg/)
+  assert.match(blocks[0].text, /Preview: 1 default action\(s\), 1 conflict\(s\)/)
+  assert.match(blocks[0].text, /pkg: upgrade/)
+  assert.match(blocks[0].text, /hosts disagree/)
+  assert.match(blocks[0].text, /Preview ID: preview-1/)
+})
+
+test('apply rendering lists installed and failed entries', () => {
+  const blocks = renderToolResult({ action: 'apply' }, {
+    ok: false,
+    action: 'apply',
+    applied: [{ name: 'one', status: 'installed' }],
+    failed: [{ name: 'two', error: 'boom' }],
+    skipped: [],
+  })
+  assert.match(blocks[0].text, /Applied: 1/)
+  assert.match(blocks[0].text, /\+ one/)
+  assert.match(blocks[0].text, /! two: boom/)
 })
 
 test('normalizeConfig derives a host id and rejects invalid repos', () => {
-  const valid = normalizeConfig({ repo: 'https://github.com/o/r.git', autoInstall: false })
+  const valid = normalizeConfig({ repo: 'https://github.com/o/r.git' })
   assert.equal(valid.repo, 'o/r')
-  assert.equal(valid.autoInstall, false)
   assert.ok(valid.hostId.length > 0)
   const invalid = normalizeConfig({ repo: 'not a repo' })
   assert.equal(invalid.repo, '')

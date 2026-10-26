@@ -1,18 +1,20 @@
 {
   "name": "dsh-plugin-sync",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Sync DSH bundle inventories across hosts through a GitHub manifest and auto-install missing plugins.",
+  "description": "Manual GitHub plugin inventory sync with an in-page configuration form and conflict-aware preview.",
   "type": "module",
   "icon": "icon.svg",
   "exports": {
     ".": "./index.js",
+    "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
   "files": [
     "index.js",
+    "client.js",
     "lib/*.js",
     "cordis.patch.yml",
     "locale/*.json",
@@ -24,6 +26,14 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
     }
   },
   "engines": {

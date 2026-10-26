@@ -86,6 +86,22 @@ test('desiredBundles skips bundles disabled everywhere unless requested', () => 
   assert.equal(desiredBundles(manifest, { includeDisabled: true }).length, 1)
 })
 
+test('desiredBundles exposes host variants and can ignore the local host', () => {
+  const manifest = normalizeManifest({
+    schemaVersion: 1,
+    hosts: {
+      a: { bundles: [{ name: 'pkg', spec: 'pkg@1.0.0', version: '1.0.0', enabled: true }] },
+      b: { bundles: [{ name: 'pkg', spec: 'pkg@2.0.0', version: '2.0.0', enabled: true }] },
+      self: { bundles: [{ name: 'self-only', spec: 'self-only@1.0.0', version: '1.0.0', enabled: true }] },
+    },
+  })
+  const desired = desiredBundles(manifest, { excludeHosts: ['self'] })
+  assert.equal(desired.length, 1)
+  assert.equal(desired[0].hostConflict, true)
+  assert.deepEqual(desired[0].hosts, ['a', 'b'])
+  assert.equal(desired[0].variants.length, 2)
+})
+
 test('normalizeManifest rejects newer schemas and invalid shapes', () => {
   assert.throws(() => normalizeManifest({ schemaVersion: 2, hosts: {} }), /supports up to/)
   assert.throws(() => normalizeManifest([]), /JSON object/)

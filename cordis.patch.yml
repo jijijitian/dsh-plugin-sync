@@ -6,6 +6,7 @@
         repo: ''
         branch: main
         path: dsh-plugins.json
-        autoSyncOnStart: true
-        syncIntervalMinutes: 0
-        autoInstall: true
+        hostId: ''
+        tokenEnv: GITHUB_TOKEN
+        tokenFile: ''
+        maxInstallsPerRun: 20

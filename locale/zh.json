@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "插件同步",
-    "description": "通过 GitHub 同步本机的 DSH 插件清单，并自动安装其他主机上已启用但本机缺失的插件。"
+    "description": "在插件页配置 GitHub 清单，手动拉取、检查冲突，并只安装你确认的插件。"
   }
 }
