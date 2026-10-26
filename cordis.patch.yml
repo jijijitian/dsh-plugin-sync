@@ -1,0 +1,11 @@
+# Bundle patch: insert the Host-side inventory synchronizer.
+- insert:
+    - id: dsh-plugin-sync
+      name: dsh-plugin-sync
+      config:
+        repo: ''
+        branch: main
+        path: dsh-plugins.json
+        autoSyncOnStart: true
+        syncIntervalMinutes: 0
+        autoInstall: true

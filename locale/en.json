@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Plugin Sync",
+    "description": "Sync this host's DSH bundle inventory through GitHub and auto-install missing bundles."
+  }
+}
