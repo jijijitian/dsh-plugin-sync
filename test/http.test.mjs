@@ -5,6 +5,7 @@ import { registerApiRoutes } from '../lib/http.js'
 
 function createHarness() {
   const routes = new Map()
+  const registrations = []
   const state = {
     current: {
       repo: '',
@@ -39,6 +40,7 @@ function createHarness() {
         effect: (fn) => fn(),
         webServer: {
           register(route) {
+            registrations.push(route)
             routes.set(route.path, route)
             return () => {}
           },
@@ -53,7 +55,7 @@ function createHarness() {
     },
   }
   registerApiRoutes({ ctx, runtime, config })
-  return { routes, state, config }
+  return { routes, registrations, state, config }
 }
 
 function fakeResponse() {
@@ -85,7 +87,9 @@ function request({ method = 'GET', origin, body } = {}) {
 }
 
 test('status route returns config snapshot without the token', async () => {
-  const { routes } = createHarness()
+  const { routes, registrations } = createHarness()
+  assert.equal(registrations.length, 5)
+  assert.equal(new Set(registrations.map((route) => route.path)).size, 5)
   const route = routes.get('/dsh-plugin-sync/api/status')
   assert.ok(route)
   const response = fakeResponse()
