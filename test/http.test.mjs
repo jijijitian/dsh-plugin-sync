@@ -90,7 +90,7 @@ test('status route returns config snapshot without the token', async () => {
   const { routes, registrations } = createHarness()
   assert.equal(registrations.length, 5)
   assert.equal(new Set(registrations.map((route) => route.path)).size, 5)
-  const route = routes.get('/dsh-plugin-sync/api/status')
+  const route = routes.get('/dsh-plugin-sync/api/v2/status')
   assert.ok(route)
   const response = fakeResponse()
   await route.handler(request(), response)
@@ -103,7 +103,7 @@ test('status route returns config snapshot without the token', async () => {
 
 test('config route saves allowed fields through configEditor', async () => {
   const { routes, state } = createHarness()
-  const route = routes.get('/dsh-plugin-sync/api/config')
+  const route = routes.get('/dsh-plugin-sync/api/v2/config')
   const response = fakeResponse()
   await route.handler(request({
     method: 'POST',
@@ -119,7 +119,7 @@ test('config route saves allowed fields through configEditor', async () => {
 
 test('config route rejects an invalid repository and cross-origin requests', async () => {
   const { routes } = createHarness()
-  const route = routes.get('/dsh-plugin-sync/api/config')
+  const route = routes.get('/dsh-plugin-sync/api/v2/config')
   const bad = fakeResponse()
   await route.handler(request({ method: 'POST', body: { values: { repo: 'not a repo' } } }), bad)
   assert.equal(bad.status, 400)
@@ -132,7 +132,7 @@ test('config route rejects an invalid repository and cross-origin requests', asy
 
 test('routes enforce their method', async () => {
   const { routes } = createHarness()
-  const route = routes.get('/dsh-plugin-sync/api/status')
+  const route = routes.get('/dsh-plugin-sync/api/v2/status')
   const response = fakeResponse()
   await route.handler(request({ method: 'POST', body: {} }), response)
   assert.equal(response.status, 405)

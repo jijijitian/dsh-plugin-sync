@@ -235,7 +235,7 @@ window.__ModuleLoader__.load({
     ]
 
     function endpoint(name) {
-      return new URL(`dsh-plugin-sync/api/${name}`, document.baseURI).pathname
+      return new URL(`dsh-plugin-sync/api/v2/${name}`, document.baseURI).pathname
     }
 
     async function call(name, { method = 'GET', body } = {}) {
