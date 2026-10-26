@@ -16,6 +16,8 @@ plugin_manager action=install_bundle target=github:jijijitian/dsh-plugin-sync
 
 Open **Plugins → Installed plugins → dsh-plugin-sync** after installation. Every host must install this plugin once; it does not install itself.
 
+> **Restart DSH once when upgrading from 1.x or enabling the page for the first time.** DSH's client-modules caches package metadata per Loader entry until the process restarts. If the 1.0 Host-only version was installed first, the 2.1 client half is not discovered until that restart; after that, normal updates only need a page refresh.
+
 ## Use
 
 1. **Configure**: repository (`owner/repo`), branch, manifest path, host id, token env var or token file, and the per-apply install limit. Save through the page; DSH writes the profile patch through `configEditor` and reloads the plugin.

@@ -1,7 +1,6 @@
 {
   "name": "dsh-plugin-sync",
-  "version": "2.0.3",
-  "private": true,
+  "version": "2.1.0",
   "description": "Manual GitHub plugin inventory sync with an in-page configuration form and conflict-aware preview.",
   "type": "module",
   "icon": "icon.svg",
@@ -28,11 +27,7 @@
       "patch": "./cordis.patch.yml"
     },
     "client": {
-      "platform": "web",
-      "immediately": true,
-      "inject": [
-        "@deepseek-ai/dsh-client-locale"
-      ]
+      "platform": "web"
     }
   },
   "engines": {

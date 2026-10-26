@@ -32,6 +32,8 @@ plugin_manager action=install_bundle target=<本目录绝对路径>
 
 安装后打开 **插件 → 已安装插件 → dsh-plugin-sync**，即可看到配置与手动同步面板。每台主机都需要先安装一次本插件；它不会自动安装自己。
 
+> **从 1.x 升级或首次启用页面时请重启 DSH。** DSH 的 client-modules 会按 Loader 条目缓存包元数据直到进程重启；如果先安装过没有 `dsh.client` 的 1.0，再安装 2.1，页面不会立即出现配置面板，重启一次后才会扫描到新的客户端半。之后普通刷新页面即可。
+
 ## 页面使用
 
 ### 1. 配置 GitHub 清单
