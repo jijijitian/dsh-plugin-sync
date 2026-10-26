@@ -109,7 +109,7 @@ export function apply(ctx, rawConfig) {
   const runtime = createSyncRuntime({
     config,
     pluginManager: ctx.pluginManager,
-    credentials: ctx.get('credentials') ?? null,
+    credentialsProvider: () => ctx.get('credentials'),
     logger: ctx.logger,
   })
 
