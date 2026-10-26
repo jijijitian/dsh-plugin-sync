@@ -39,5 +39,13 @@
     "sync",
     "github"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jijijitian/dsh-plugin-sync.git"
+  },
+  "homepage": "https://github.com/jijijitian/dsh-plugin-sync",
+  "bugs": {
+    "url": "https://github.com/jijijitian/dsh-plugin-sync/issues"
+  }
 }

@@ -12,6 +12,12 @@ Sync DSH bundle inventories across machines through one GitHub-hosted JSON manif
 
 ## Setup
 
+Install the plugin from GitHub through the DSH plugin manager:
+
+```text
+plugin_manager action=install_bundle target=github:jijijitian/dsh-plugin-sync
+```
+
 1. Create a GitHub repository (private recommended) for the manifest, for example `owner/dsh-plugin-inventory`.
 2. Provide a token with Contents read/write through `GITHUB_TOKEN`, `config.tokenEnv`, `config.tokenFile`, or `config.token`.
 3. Configure the plugin row in the profile patch:

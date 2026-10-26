@@ -19,8 +19,10 @@
 在这个仓库目录中，由 DSH 的插件管理器安装：
 
 ```text
-plugin_manager action=install_bundle target=<本目录绝对路径>
+plugin_manager action=install_bundle target=github:jijijitian/dsh-plugin-sync
 ```
+
+也可以使用本目录的绝对路径安装，便于本地开发。远程安装后再修改 `config.repo` 指向你自己的清单仓库即可。
 
 安装后，插件管理器里会出现 **插件同步 / Plugin Sync**，工具列表中会出现 `plugin_sync`。
 
