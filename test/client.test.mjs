@@ -77,5 +77,8 @@ test('client registers the bundle config page under the package key', () => {
   assert.equal(registration.options.locale, 'dsh-plugin-sync')
   assert.equal(dictionaries.length, 1)
   assert.ok(dictionaries[0].value.zh.manualTitle)
+  assert.ok(dictionaries[0].value.zh.tokenHelp)
+  assert.equal(dictionaries[0].value.en.tokenHelpOpen, 'Open GitHub token page')
+  assert.match(source, /settings\/tokens\/new\?description=DSH%20Plugin%20Sync&scopes=gist/)
   assert.ok(dictionaries[0].value.en.manualTitle)
 })

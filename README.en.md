@@ -18,7 +18,7 @@ plugin_manager action=install_bundle target=github:jijijitian/dsh-plugin-sync
 
 ## Use
 
-1. **Token**: enter a classic GitHub token with the `gist` scope in the plugin page. It is stored in DSH's credential service, not in the plugin configuration. An existing `GITHUB_TOKEN` environment token is detected and can be left unchanged.
+1. **Token**: enter a classic GitHub token with the `gist` scope in the plugin page. It is stored in DSH's credential service, not in the plugin configuration. On the first fill, click **How to get a token** to see the required permission and steps, then open the prefilled GitHub token page. An existing `GITHUB_TOKEN` environment token is detected and can be left unchanged.
 2. **First host**: leave **Gist ID** empty and click **Create Gist and push local inventory**. The plugin creates a secret Gist, writes `dsh-plugins.json`, stores the Gist ID locally, and saves it to the configuration when possible.
 3. **Other hosts**: paste the same Gist ID or `https://gist.github.com/...` URL. No repository or new Gist is needed.
 4. **Pull**: click **Pull Gist manifest**. This only reads the Gist and stores a 10-minute preview.

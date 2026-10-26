@@ -35,6 +35,7 @@ Gist 需要 GitHub token：
 - 经典 token 需要 **`gist`** scope；
 - 当前 fine-grained token 对 Gist 的支持有限，建议使用 classic token；
 - 在插件页的 **GitHub Token** 输入框填写即可，token 会保存到 DSH 的凭据服务，不写入插件配置文件；
+- 首次填写时点击 **如何获取 Token**，会先显示所需权限和操作步骤，再提供 **打开 GitHub Token 页面** 的链接；链接已预填描述和 `gist` 权限；
 - 如果已有环境变量 `GITHUB_TOKEN`，页面会显示“已配置”，可以留空不修改。
 
 没有 token 时可以读取可访问的 Gist 并预览，但不能创建或推送。

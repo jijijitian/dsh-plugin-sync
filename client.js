@@ -16,6 +16,18 @@ window.__ModuleLoader__.load({
       tokenPlaceholder: 'ghp_...',
       tokenPlaceholderConfigured: '已配置，留空不修改',
       tokenReadonly: 'Token 由环境变量或外部凭据提供，无法在页面修改。',
+      tokenHelp: '如何获取 Token',
+      tokenHelpHide: '收起获取说明',
+      tokenHelpPermissions: '所需权限',
+      tokenHelpPermissionText: '只需要 classic token 的 gist 权限；不需要 repo 权限。fine-grained token 目前对 Gist 支持有限。',
+      tokenHelpSteps: '操作步骤',
+      tokenHelpStep1: '打开 GitHub 的 Token 创建页面（已预填描述和 gist 权限）。',
+      tokenHelpStep2: '确认当前账号，并设置合适的过期时间。',
+      tokenHelpStep3: '勾选 gist；不要勾选仓库等其他权限。',
+      tokenHelpStep4: '点击生成，复制以 ghp_ 开头的 token。',
+      tokenHelpStep5: '粘贴到上方输入框，然后点击保存配置。',
+      tokenHelpSecurity: 'Token 只保存在 DSH 凭据服务中；不要分享，也不要写进仓库。',
+      tokenHelpOpen: '打开 GitHub Token 页面',
       fieldFileName: '清单文件名',
       fieldDescription: 'Gist 描述',
       fieldHostId: '主机标识',
@@ -113,6 +125,18 @@ window.__ModuleLoader__.load({
       tokenPlaceholder: 'ghp_...',
       tokenPlaceholderConfigured: 'Configured; leave blank to keep it',
       tokenReadonly: 'The token comes from the environment or an external credential and cannot be changed here.',
+      tokenHelp: 'How to get a token',
+      tokenHelpHide: 'Hide token instructions',
+      tokenHelpPermissions: 'Required permission',
+      tokenHelpPermissionText: 'Only the classic token gist scope is needed; no repo scope. Fine-grained tokens have limited Gist support.',
+      tokenHelpSteps: 'Steps',
+      tokenHelpStep1: 'Open GitHub\'s token creation page (description and gist scope are prefilled).',
+      tokenHelpStep2: 'Confirm the account and choose an expiration.',
+      tokenHelpStep3: 'Check gist; do not grant repository scopes.',
+      tokenHelpStep4: 'Generate and copy the token beginning with ghp_.',
+      tokenHelpStep5: 'Paste it above and click Save configuration.',
+      tokenHelpSecurity: 'The token is stored only in DSH credentials. Do not share it or commit it.',
+      tokenHelpOpen: 'Open GitHub token page',
       fieldFileName: 'Manifest file name',
       fieldDescription: 'Gist description',
       fieldHostId: 'Host id',
@@ -214,6 +238,12 @@ window.__ModuleLoader__.load({
 .dsh-ps-input:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .dsh-ps-input:disabled{opacity:.55}
 .dsh-ps-hint{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.dsh-ps-help-wrap{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.dsh-ps-help{width:100%;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);padding:12px;display:flex;flex-direction:column;gap:10px}
+.dsh-ps-help-title{margin:0;font-size:13px;line-height:20px;font-weight:600}
+.dsh-ps-help p{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.dsh-ps-help ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.dsh-ps-help a.dsh-ps-btn{display:inline-flex;align-items:center;justify-content:center;width:max-content;text-decoration:none}
 .dsh-ps-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .dsh-ps-btn{height:32px;padding:0 12px;border:1px solid var(--dsw-alias-border-l2);border-radius:6px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
 .dsh-ps-btn:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2)}
@@ -250,6 +280,7 @@ window.__ModuleLoader__.load({
       { key: 'gistId', label: 'fieldGistId', hint: 'fieldGistIdHint', placeholder: 'Gist ID or gist.github.com URL' },
     ]
     const TOKEN_FIELD = { key: 'token', label: 'fieldToken', hint: 'fieldTokenHint', placeholder: 'Gist token', type: 'password' }
+    const TOKEN_URL = 'https://github.com/settings/tokens/new?description=DSH%20Plugin%20Sync&scopes=gist'
 
     function endpoint(name) {
       return new URL(`dsh-plugin-sync/api/v2/${name}`, document.baseURI).pathname
@@ -333,6 +364,7 @@ window.__ModuleLoader__.load({
       const [status, setStatus] = React.useState(null)
       const [draft, setDraft] = React.useState(null)
       const [tokenDraft, setTokenDraft] = React.useState('')
+      const [showTokenHelp, setShowTokenHelp] = React.useState(false)
       const [loading, setLoading] = React.useState(true)
       const [saving, setSaving] = React.useState(false)
       const [message, setMessage] = React.useState(null)
@@ -536,6 +568,34 @@ window.__ModuleLoader__.load({
               hintOverride: token?.writable === false ? t('tokenReadonly') : t('fieldTokenHint'),
               onChange: (_key, value) => { setTokenDraft(value) },
             }),
+          ),
+          token?.configured === true ? null : h('div', { className: 'dsh-ps-help-wrap' },
+            h('button', {
+              type: 'button',
+              className: 'dsh-ps-btn',
+              'aria-expanded': showTokenHelp,
+              'aria-controls': 'dsh-ps-token-help',
+              onClick: () => { setShowTokenHelp((current) => !current) },
+            }, showTokenHelp ? t('tokenHelpHide') : t('tokenHelp')),
+            showTokenHelp ? h('div', { className: 'dsh-ps-help', id: 'dsh-ps-token-help', role: 'region' },
+              h('div', null,
+                h('p', { className: 'dsh-ps-help-title' }, t('tokenHelpPermissions')),
+                h('p', null, t('tokenHelpPermissionText')),
+              ),
+              h('div', null,
+                h('p', { className: 'dsh-ps-help-title' }, t('tokenHelpSteps')),
+                h('ol', null,
+                  [1, 2, 3, 4, 5].map((step) => h('li', { key: step }, t(`tokenHelpStep${step}`))),
+                ),
+              ),
+              h('p', { className: 'dsh-ps-hint' }, t('tokenHelpSecurity')),
+              h('a', {
+                className: 'dsh-ps-btn primary',
+                href: TOKEN_URL,
+                target: '_blank',
+                rel: 'noreferrer',
+              }, t('tokenHelpOpen')),
+            ) : null,
           ),
           h('div', { className: 'dsh-ps-actions' },
             h('button', {
