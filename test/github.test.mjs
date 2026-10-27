@@ -16,7 +16,7 @@ function manifest(hostId = 'host-a') {
   }
 }
 
-function startMock({ initial = null, token = '', conflictOnce = false, truncated = false } = {}) {
+function startMock({ initial = null, token = '', truncated = false } = {}) {
   let state = initial === null
     ? null
     : {
@@ -24,7 +24,7 @@ function startMock({ initial = null, token = '', conflictOnce = false, truncated
         text: `${JSON.stringify(initial, null, 2)}\n`,
         version: 'version-1',
       }
-  let conflict = conflictOnce
+  const seenHeaders = []
   let reads = 0
   let writes = 0
   const server = createServer(async (req, res) => {
@@ -100,16 +100,16 @@ function startMock({ initial = null, token = '', conflictOnce = false, truncated
       let raw = ''
       for await (const chunk of req) raw += chunk
       const body = JSON.parse(raw)
-      if (conflict) {
-        conflict = false
-        state = { ...state, version: 'version-remote' }
-        res.writeHead(412, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ message: 'etag does not match' }))
-        return
-      }
-      if (req.headers['if-match'] !== undefined && req.headers['if-match'] !== `"${state.version}"`) {
-        res.writeHead(412, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ message: 'etag does not match' }))
+      seenHeaders.push({ ...req.headers })
+      // GitHub rejects conditional headers on this endpoint; mimic it so a
+      // regression that reintroduces If-Match fails loudly.
+      if (req.headers['if-match'] !== undefined) {
+        res.writeHead(400, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({
+          message: 'Bad Request',
+          errors: ['Conditional request headers are not allowed in unsafe requests unless supported by the endpoint'],
+          status: '400',
+        }))
         return
       }
       state = {
@@ -139,6 +139,10 @@ function startMock({ initial = null, token = '', conflictOnce = false, truncated
         readState: () => state,
         reads: () => reads,
         writes: () => writes,
+        headers: () => seenHeaders,
+        bumpVersion: (next = 'version-remote') => {
+          state = { ...state, version: next }
+        },
         close: () => new Promise((done) => server.close(done)),
       })
     })
@@ -184,20 +188,25 @@ test('a missing Gist is an error rather than an empty manifest', async (t) => {
   )
 })
 
-test('creates and updates a Gist', async (t) => {
+test('creates and updates a Gist without conditional headers', async (t) => {
   const mock = await startMock()
   t.after(() => mock.close())
   const client = createGitHubClient({ apiBaseUrl: mock.apiBaseUrl, token: 'x' })
   const created = await client.createGist({ manifest: manifest(), fileName: 'dsh-plugins.json' })
   assert.equal(created.gistId, '0123456789abcdef')
   assert.equal(mock.writes(), 1)
+  const remote = await client.readGist('0123456789abcdef', 'dsh-plugins.json')
   const updated = await client.updateGist('0123456789abcdef', {
     manifest: { schemaVersion: 1, hosts: {} },
     fileName: 'dsh-plugins.json',
-    ifMatch: '"version-1"',
+    expectedVersion: remote.version,
   })
   assert.equal(updated.version, 'version-2')
   assert.equal(mock.writes(), 2)
+  for (const headers of mock.headers()) {
+    assert.equal(headers['if-match'], undefined)
+    assert.equal(headers['if-none-match'], undefined)
+  }
 })
 
 test('requires a token for create and update', async (t) => {
@@ -214,17 +223,38 @@ test('requires a token for create and update', async (t) => {
   )
 })
 
-test('surfaces an ETag conflict for the caller to retry', async (t) => {
-  const mock = await startMock({ initial: manifest(), conflictOnce: true })
+test('reports a conflict when the Gist changed after the read', async (t) => {
+  const mock = await startMock({ initial: manifest() })
   t.after(() => mock.close())
   const client = createGitHubClient({ apiBaseUrl: mock.apiBaseUrl, token: 'x' })
   const remote = await client.readGist('0123456789abcdef', 'dsh-plugins.json')
+  mock.bumpVersion()
   await assert.rejects(
     () => client.updateGist('0123456789abcdef', {
       manifest: { schemaVersion: 1, hosts: {} },
-      ifMatch: remote.etag,
+      expectedVersion: remote.version,
     }),
     (error) => error instanceof GitHubError && error.code === 'conflict',
+  )
+  assert.equal(mock.writes(), 0)
+})
+
+test('includes GitHub error details in the failure message', async (t) => {
+  const mock = await startMock({ initial: manifest() })
+  t.after(() => mock.close())
+  const client = createGitHubClient({ apiBaseUrl: mock.apiBaseUrl, token: 'x' })
+  // A conditional header still reaches GitHub when a caller forces one through
+  // a stale option; the mock answers the same 400 GitHub does.
+  const fetchImpl = async (url, init) => fetch(url, {
+    ...init,
+    headers: { ...init.headers, 'if-match': '"version-1"' },
+  })
+  const forced = createGitHubClient({ apiBaseUrl: mock.apiBaseUrl, token: 'x', fetchImpl })
+  await assert.rejects(
+    () => forced.updateGist('0123456789abcdef', { manifest: { schemaVersion: 1, hosts: {} } }),
+    (error) => error instanceof GitHubError
+      && error.status === 400
+      && /Conditional request headers/.test(error.message),
   )
 })
 

@@ -30,7 +30,7 @@ plugin_manager action=install_bundle target=github:jijijitian/dsh-plugin-sync
    - installed but disabled locally → keep disabled or enable;
    - hosts disagree on version/source → use the highest version, keep local, or skip.
 6. **Apply**: only rows set to **use remote** are installed or enabled. Nothing is removed or disabled.
-7. **Push**: **Push local inventory** updates the Gist after a confirmation. Unchanged content creates no update. The client sends an ETag and retries a conflicting update by merging again.
+7. **Push**: **Push local inventory** updates the Gist after a confirmation. Unchanged content creates no update. Concurrency uses the Gist version: read, compare before writing, and re-merge on change (up to three attempts). GitHub rejects conditional headers such as `If-Match` on this endpoint with `400 Bad Request`, so ETag preconditions cannot be used.
 
 ## Configuration
 
