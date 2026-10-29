@@ -103,20 +103,39 @@ Gist 需要 GitHub token：
 
 dsh 0.2.1 的插件管理器在存在 `hmr` 服务时，只要包已经在 profile 的 `dependencies` 里，`installBundle` 就一律返回 `already-installed`（源码守卫在 `dsh-plugin-manager` 内部）。也就是说**没有原地升级**这条路，插件页和 dshmarket 都是用「先卸载、再安装」绕过去的。
 
-本插件采用同样的两步，并加了保护：
+本插件采用同样的两步，但加了三层保护（`bundle-in-use` 的教训在这里）：
+
+**① 先探测，不盲目删除。** `removeBundle()` 的执行顺序是「先取消选择写盘 → 再尝试热重挂 → 最后检查是否仍在运行」，所以它一旦以 `bundle-in-use` 失败，插件就已经被从 `dsh.profile.bundles` 里移除了 —— 表现为**装了但不生效**，重启也回不来。因此升级前先调用 `setBundleEnabled(name,false)` 探测：
+
+- 若管理器返回 `restart-required`，或插件仍是 `enabled` 状态 → 判定 HMR 无法卸载，**直接放弃，不执行删除**；
+- 只有确认已卸载，才继续走删除。
+
+**② 任何删除失败都立刻恢复选中。** 删除被拒后调用 `setBundleEnabled(name,true)` 把插件放回 profile，保证失败不会留下“装但停用”的状态。
+
+**③ 记住哪些插件只能手动更新。** 探测失败的插件写入 `state.manualUpdates`，之后：
+
+- 预览里该行显示 **需手动更新** 徽标与原因；
+- 再次同步时直接跳过，不再尝试删除（不会重复折腾）。
+
+完整流程：
 
 1. 先照常安装；若返回 `already-installed`，记录当前已装版本；
-2. 把待升级项写入 `state.pendingUpgrades`（用于崩溃后排查）；
-3. 调用 `removeBundle()` 卸载旧版，再 `installBundle()` 装新版；
-4. 新版装不上时，立刻用记录的旧 spec 装回去，日志提示“已回滚到旧版本”；
-5. 成功或回滚后清除 `pendingUpgrades`。
+2. 若在 `manualUpdates` 里 → 直接跳过；
+3. 探测：`setBundleEnabled(false)`，并回读确认是否真的卸下；
+4. 探测失败 → 恢复选中 + 记入 `manualUpdates`，本次判失败并给出原因；
+5. 探测成功 → 写 `pendingUpgrades` → `removeBundle()` → `installBundle()`；
+6. 删除失败 → 恢复选中（`bundle-in-use` 同时记入 `manualUpdates`）；
+7. 新版装不上 → 用旧 spec 装回，日志提示“已回滚到旧版本”；
+8. 成功或回滚后清除 `pendingUpgrades`；成功时清除 `manualUpdates`。
 
-如果进程在第 3、4 步之间被中断，页面顶部会显示 **上次升级未完成**，列出插件名与涉及版本，方便你重新推送或去插件页处理。
+如果进程在第 5 步中途被中断，页面顶部会显示 **上次升级未完成**，列出插件名与涉及版本。
 
 两个例外：
 
 - **本插件不会升级或删除自己**（删除会卸载正在运行的代码）。遇到自己的升级项会直接标记失败并提示去插件页更新。
 - 由 DSH 安装提供、`removable: false` 的插件只显示「保留」。
+
+> 实测：`dsh-mnemon` 在这台机器上就属于“HMR 无法卸载”的类型。现在的表现是探测阶段即停手，插件**保持启用**，状态文件记入 `manualUpdates`，再次同步直接跳过 —— 不会再出现被静默停用的情况。
 
 ### 错误信息
 
@@ -128,6 +147,7 @@ dsh 0.2.1 的插件管理器在存在 `hmr` 服务时，只要包已经在 profi
 | `incompatible-version` | 该包要求的 DSH 版本与当前宿主不同 |
 | `not-bundle` | 该包没有 bundle patch，无法启用 |
 | `management-required` | 该 bundle 由 DSH 安装管理，无法从 profile 修改 |
+| `bundle-in-use` | HMR 无法在运行中卸载该插件；已保持其启用状态 |
 
 不会再出现 `[object Object]`。
 
@@ -237,6 +257,7 @@ node --test
 - 本机独有插件的删除流程、不可移除插件的选项收敛；
 - 任务日志的进度、逐条消息与终态；
 - 已安装插件的卸载后重装升级、失败回滚、self-update 拦截；
+- HMR 无法卸载时的探测中止、选中恢复、手动更新记录与重复跳过；
 - 只有 code 没有 message 的拒绝被翻译成可读文本；
 - 工具结果渲染和客户端注册。
 

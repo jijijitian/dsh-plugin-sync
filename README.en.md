@@ -48,15 +48,26 @@ The same log is available through the `plugin_sync` tool's `log` action. Removal
 
 ## Upgrading an installed bundle
 
-While an `hmr` service is live, dsh 0.2.1's plugin manager answers `installBundle` with `already-installed` whenever the package is already a profile dependency, so there is no in-place upgrade. The Plugins page and dshmarket both remove first and install again; this plugin does the same, with protection:
+While an `hmr` service is live, dsh 0.2.1's plugin manager answers `installBundle` with `already-installed` whenever the package is already a profile dependency, so there is no in-place upgrade. The Plugins page and dshmarket both remove first and install again. This plugin does the same, but `removeBundle()` deselects the bundle *before* it can fail with `bundle-in-use`, which would leave it installed yet dropped from `dsh.profile.bundles` (silently disabled, and it does not come back after a restart). Three layers prevent that:
+
+**① Probe before removing.** Call `setBundleEnabled(name, false)` and read the bundle back. A `restart-required` answer or a still-enabled row means HMR cannot unload it, so the removal is **not attempted at all**.
+
+**② Reselect after any failed removal.** If `removeBundle()` still refuses, `setBundleEnabled(name, true)` puts the bundle back, so a failure never strands it.
+
+**③ Remember what needs a manual update.** A bundle that failed the probe is written to `state.manualUpdates`: the preview row shows a **Manual update** badge explaining why, and later syncs skip it instead of repeatedly trying to unload it.
+
+Full sequence:
 
 1. Install normally. On `already-installed`, record the installed version.
-2. Write the attempt to `state.pendingUpgrades` so a crash is diagnosable.
-3. `removeBundle()` the old copy, then `installBundle()` the new spec.
-4. If the new install fails, reinstall the recorded old spec and report "restored the previous version".
-5. Clear `pendingUpgrades` after success or rollback.
+2. Skip immediately when the bundle is already in `manualUpdates`.
+3. Probe with `setBundleEnabled(false)` and verify it was really unloaded.
+4. Probe failed → reselect, record in `manualUpdates`, report why.
+5. Probe passed → write `pendingUpgrades` → `removeBundle()` → `installBundle()`.
+6. Removal failed → reselect (and record `manualUpdates` when the code is `bundle-in-use`).
+7. New install failed → reinstall the recorded old spec and report "restored the previous version".
+8. Clear `pendingUpgrades` after success or rollback; clear `manualUpdates` on success.
 
-If the process stops between steps 3 and 4, the page shows **An upgrade did not finish** with the bundle names and versions.
+If the process stops during step 5, the page shows **An upgrade did not finish** with the bundle names and versions.
 
 Two exceptions: the plugin never upgrades or removes **itself** (unloading the running code), and bundles marked `removable: false` only offer "keep".
 

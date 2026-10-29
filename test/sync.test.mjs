@@ -134,12 +134,14 @@ function makeConfig(overrides = {}) {
 }
 
 class FakeManager {
-  constructor(bundles, { hmr = false, failInstall = null } = {}) {
+  constructor(bundles, { hmr = false, failInstall = null, stuck = [] } = {}) {
     this.bundles = bundles
     this.calls = []
     this.hmr = hmr
     this.failInstall = failInstall
+    this.stuck = new Set(stuck)
     this.present = new Set(bundles.map((bundle) => bundle.name))
+    this.selected = new Set(bundles.map((bundle) => bundle.name))
   }
 
   async listBundles() {
@@ -174,14 +176,36 @@ class FakeManager {
   }
 
   async setBundleEnabled(name, enabled) {
+    // Mirror the real manager: selection is persisted, but HMR may refuse to
+    // actually unload a module, which is what removeBundle then reports.
+    this.calls.push({ enabled: name, value: enabled })
+    const bundle = this.bundles.find((item) => item.name === name)
+    if (bundle === undefined) {
+      return { changed: false, application: 'failed', stage: 'enable', target: name, error: { code: 'unknown-plugin' } }
+    }
+    if (enabled === false && this.stuck.has(name)) {
+      return { changed: true, application: 'applied', stage: 'enable', target: name, enabled: false }
+    }
+    bundle.enabled = enabled
     return { changed: true, application: 'applied', stage: 'enable', target: name, enabled }
   }
 
   async removeBundle(name) {
     this.calls.push({ removed: name })
-    this.bundles = this.bundles.filter((bundle) => bundle.name !== name)
+    const bundle = this.bundles.find((item) => item.name === name)
+    // The real manager deselects first, then refuses; the deselection sticks.
+    if (bundle !== undefined && this.stuck.has(name)) {
+      bundle.enabled = false
+      this.selected.delete(name)
+      return { changed: true, application: 'failed', stage: 'remove', target: name, error: { code: 'bundle-in-use' } }
+    }
+    this.bundles = this.bundles.filter((item) => item.name !== name)
     this.present.delete(name)
     return { changed: true, application: 'applied', stage: 'remove', target: name, warnings: [] }
+  }
+
+  isSelected(name) {
+    return this.selected.has(name)
   }
 }
 
@@ -480,6 +504,96 @@ test('a refusal without a message is reported as readable text', async (t) => {
   assert.match(result.failed[0].error, /does not provide a bundle patch/)
   const job = runtime.job(result.jobId)
   assert.ok(job.lines.every((line) => !line.message.includes('[object Object]')))
+})
+
+test('a bundle HMR cannot unload keeps its profile selection and is remembered', async (t) => {
+  const mock = await startMock({
+    schemaVersion: 1,
+    hosts: { remote: { bundles: [{ name: 'dsh-stuck', spec: 'dsh-stuck@2.0.0', version: '2.0.0', enabled: true }] } },
+  })
+  t.after(() => mock.close())
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const manager = new FakeManager([
+    { name: 'dsh-stuck', spec: 'dsh-stuck@1.0.0', version: '1.0.0', availability: 'profile', installed: true, enabled: true, removable: true },
+  ], { hmr: true, stuck: ['dsh-stuck'] })
+  const runtime = createSyncRuntime({
+    config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
+    pluginManager: manager,
+    logger: { info() {}, warn() {} },
+    statePath: join(dir, 'state.json'),
+    env: {},
+  })
+  const preview = await runtime.preview()
+  const result = await runtime.apply(preview.previewId, { 'dsh-stuck': 'remote' })
+
+  assert.equal(result.ok, false)
+  assert.equal(result.failed[0].code, 'manual-update')
+  assert.match(result.failed[0].error, /cannot unload this bundle/)
+  // The critical part: the bundle is still selected, so it keeps running.
+  assert.equal(manager.isSelected('dsh-stuck'), true)
+  assert.equal(manager.bundles[0].enabled, true)
+  assert.equal(manager.bundles[0].spec, 'dsh-stuck@1.0.0')
+  const status = await runtime.status()
+  assert.equal(status.state.manualUpdates.length, 1)
+  assert.equal(status.state.manualUpdates[0].name, 'dsh-stuck')
+})
+
+test('a remembered bundle is skipped and marked on the next preview', async (t) => {
+  const mock = await startMock({
+    schemaVersion: 1,
+    hosts: { remote: { bundles: [{ name: 'dsh-stuck', spec: 'dsh-stuck@2.0.0', version: '2.0.0', enabled: true }] } },
+  })
+  t.after(() => mock.close())
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const manager = new FakeManager([
+    { name: 'dsh-stuck', spec: 'dsh-stuck@1.0.0', version: '1.0.0', availability: 'profile', installed: true, enabled: true, removable: true },
+  ], { hmr: true, stuck: ['dsh-stuck'] })
+  const runtime = createSyncRuntime({
+    config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
+    pluginManager: manager,
+    logger: { info() {}, warn() {} },
+    statePath: join(dir, 'state.json'),
+    env: {},
+  })
+
+  const first = await runtime.preview()
+  await runtime.apply(first.previewId, { 'dsh-stuck': 'remote' })
+  const removalsAfterFirst = manager.calls.filter((call) => call.removed === 'dsh-stuck').length
+
+  const second = await runtime.preview()
+  assert.equal(findEntry(second, 'dsh-stuck').manualUpdate, true)
+  const retry = await runtime.apply(second.previewId, { 'dsh-stuck': 'remote' })
+
+  assert.equal(retry.failed[0].code, 'manual-update')
+  assert.match(retry.failed[0].error, /could not be unloaded by HMR before/i)
+  // It must not attempt another removal.
+  assert.equal(manager.calls.filter((call) => call.removed === 'dsh-stuck').length, removalsAfterFirst)
+})
+
+test('a successful upgrade clears the manual-update record', async (t) => {
+  const mock = await startMock({
+    schemaVersion: 1,
+    hosts: { remote: { bundles: [{ name: 'dsh-extra', spec: 'dsh-extra@2.0.0', version: '2.0.0', enabled: true }] } },
+  })
+  t.after(() => mock.close())
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const manager = new FakeManager([
+    { name: 'dsh-extra', spec: 'dsh-extra@1.0.0', version: '1.0.0', availability: 'profile', installed: true, enabled: true, removable: true },
+  ], { hmr: true })
+  const runtime = createSyncRuntime({
+    config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
+    pluginManager: manager,
+    logger: { info() {}, warn() {} },
+    statePath: join(dir, 'state.json'),
+    env: {},
+  })
+  await runtime.apply((await runtime.preview()).previewId, { 'dsh-extra': 'remote' })
+  const status = await runtime.status()
+  assert.equal(status.state.manualUpdates, undefined)
+  assert.equal(status.state.pendingUpgrades, undefined)
 })
 
 test('preview without a Gist id asks for one', async (t) => {

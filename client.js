@@ -83,6 +83,9 @@ window.__ModuleLoader__.load({
       localOnlyHint: '线上清单里没有这个插件；默认保留。',
       localOnlyFixed: '这个插件不可移除（由 DSH 安装提供），只能保留。',
       applyWithRemove: '应用（{count} 项，其中删除 {remove}）',
+      manualUpdateBadge: '需手动更新',
+      manualUpdateHint: 'HMR 无法在运行中卸载这个插件，自动升级会破坏它的启用状态；请到插件页更新，或重启后再试。',
+      reselectedNote: '已恢复该插件的启用状态（删除被拒绝）。',
       installMethodTitle: '安装方式',
       installMethodValue: '调用 DSH 官方插件管理器（ctx.pluginManager；底层是 pnpm，与插件页安装同一路径）',
       logTitle: '安装日志',
@@ -212,6 +215,9 @@ window.__ModuleLoader__.load({
       localOnlyHint: 'Not present in the remote manifest; kept by default.',
       localOnlyFixed: 'This bundle cannot be removed (provided by the DSH installation); it can only be kept.',
       applyWithRemove: 'Apply ({count} change(s), {remove} remove)',
+      manualUpdateBadge: 'Manual update',
+      manualUpdateHint: 'HMR cannot unload this bundle while DSH runs, so an automatic upgrade would break its enabled state. Update it from the Plugins page, or restart first.',
+      reselectedNote: 'Its profile selection was restored after the refused removal.',
       installMethodTitle: 'Install method',
       installMethodValue: 'DSH plugin manager (ctx.pluginManager — pnpm underneath, the same path the plugin page uses)',
       logTitle: 'Install log',
@@ -770,6 +776,11 @@ window.__ModuleLoader__.load({
                       : null,
                     entry.kind === 'local-only' && !entry.local?.removable
                       ? h('div', { className: 'dsh-ps-conflict' }, t('localOnlyFixed'))
+                      : null,
+                    entry.manualUpdate === true
+                      ? h('div', { className: 'dsh-ps-conflict' },
+                          h('span', { className: 'dsh-ps-badge warn' }, t('manualUpdateBadge')),
+                          ` ${t('manualUpdateHint')}`)
                       : null,
                     entry.conflict?.type === 'host-disagreement' && entry.remote?.variants?.length
                       ? h('div', { className: 'dsh-ps-variants' },

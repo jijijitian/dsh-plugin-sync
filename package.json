@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-sync",
-  "version": "2.6.1",
+  "version": "2.7.1",
   "description": "Manual GitHub Gist plugin inventory sync with remove-then-install upgrades, local-only removal, an install log, and conflict-aware preview.",
   "type": "module",
   "icon": "icon.svg",
