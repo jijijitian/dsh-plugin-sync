@@ -57,6 +57,9 @@ function createHarness(credentials = undefined) {
     async status() {
       return { ok: true, configured: false, gistName: 'dsh-plugin-sync', gistId: '', config: { gistName: 'dsh-plugin-sync' }, token: { configured: false }, local: null, state: {} }
     },
+    job: (id) => (id === 'job-1' ? { id: 'job-1', kind: 'apply', status: 'running', lines: [] } : null),
+    latestJob: () => ({ id: 'job-1', kind: 'apply', status: 'running', lines: [], progress: { done: 1, total: 2 } }),
+    jobs: () => [{ id: 'job-1', kind: 'apply', status: 'running', lines: [] }],
   }
   registerApiRoutes({ ctx, runtime, config })
   return { routes, registrations, state, config }
@@ -77,12 +80,13 @@ function fakeResponse() {
   }
 }
 
-function request({ method = 'GET', origin, body } = {}) {
+function request({ method = 'GET', origin, body, url } = {}) {
   const headers = { host: '127.0.0.1:1234' }
   if (origin !== undefined) headers.origin = origin
   if (body !== undefined) headers['content-length'] = String(Buffer.byteLength(JSON.stringify(body)))
   return {
     method,
+    url: url ?? '/',
     headers,
     async *[Symbol.asyncIterator]() {
       if (body !== undefined) yield Buffer.from(JSON.stringify(body))
@@ -92,8 +96,8 @@ function request({ method = 'GET', origin, body } = {}) {
 
 test('status route returns config snapshot without the token', async () => {
   const { routes, registrations } = createHarness()
-  assert.equal(registrations.length, 5)
-  assert.equal(new Set(registrations.map((route) => route.path)).size, 5)
+  assert.equal(registrations.length, 6)
+  assert.equal(new Set(registrations.map((route) => route.path)).size, 6)
   const route = routes.get('/dsh-plugin-sync/api/v2/status')
   assert.ok(route)
   const response = fakeResponse()
@@ -158,6 +162,26 @@ test('config route accepts a custom Gist name and rejects cross-origin requests'
   const crossed = fakeResponse()
   await route.handler(request({ method: 'GET', origin: 'https://evil.example' }), crossed)
   assert.equal(crossed.status, 403)
+})
+
+test('jobs route returns the latest job and one job by id', async () => {
+  const { routes } = createHarness()
+  const route = routes.get('/dsh-plugin-sync/api/v2/jobs')
+  const latest = fakeResponse()
+  await route.handler(request({ url: '/dsh-plugin-sync/api/v2/jobs' }), latest)
+  assert.equal(latest.status, 200)
+  const latestBody = JSON.parse(latest.body)
+  assert.equal(latestBody.latest.id, 'job-1')
+  assert.equal(latestBody.jobs.length, 1)
+
+  const one = fakeResponse()
+  await route.handler(request({ url: '/dsh-plugin-sync/api/v2/jobs?id=job-1' }), one)
+  assert.equal(one.status, 200)
+  assert.equal(JSON.parse(one.body).job.id, 'job-1')
+
+  const missing = fakeResponse()
+  await route.handler(request({ url: '/dsh-plugin-sync/api/v2/jobs?id=nope' }), missing)
+  assert.equal(missing.status, 404)
 })
 
 test('routes enforce their method', async () => {

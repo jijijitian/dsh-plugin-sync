@@ -59,7 +59,7 @@ window.__ModuleLoader__.load({
       conflictCount: '{count} 个冲突',
       actionableCount: '{count} 项可执行',
       previewSummary: '线上 {hosts} 台主机 / {bundles} 条插件记录；{actionable} 项可执行，{conflicts} 个冲突。',
-      conflictRules: '冲突处理：只增不删；线上版本更高时默认升级；线上更低或同版本不同来源时默认保留本机；主机之间版本冲突时默认采用最高版本，可逐项修改。',
+      conflictRules: '冲突处理：只增不删；线上版本更高时默认升级；线上更低或同版本不同来源时默认保留本机；主机之间版本冲突时默认采用最高版本；本机独有默认保留，也可选择删除。',
       kindInstall: '缺失',
       kindUpgrade: '升级',
       kindDowngrade: '降级',
@@ -78,6 +78,18 @@ window.__ModuleLoader__.load({
       choiceLocal: '保留本机',
       choiceKeepDisabled: '保持停用',
       choiceSkip: '跳过',
+      choiceRemove: '删除本机插件',
+      removeWarn: '删除会卸载该插件包并移除它在本 profile 中的选择，重启后生效。',
+      localOnlyHint: '线上清单里没有这个插件；默认保留。',
+      localOnlyFixed: '这个插件不可移除（由 DSH 安装提供），只能保留。',
+      applyWithRemove: '应用（{count} 项，其中删除 {remove}）',
+      installMethodTitle: '安装方式',
+      installMethodValue: '调用 DSH 官方插件管理器（ctx.pluginManager；底层是 pnpm，与插件页安装同一路径）',
+      logTitle: '安装日志',
+      logEmpty: '还没有日志。拉取或同步后会在这里显示进度。',
+      logShow: '显示日志',
+      logHide: '收起日志',
+      logProgress: '{done}/{total}',
       localVersion: '本机 {version}',
       remoteVersion: '线上 {version}',
       notInstalled: '未安装',
@@ -86,6 +98,7 @@ window.__ModuleLoader__.load({
       applyOk: '同步完成：安装/启用 {applied} 项，失败 {failed} 项。',
       applyPartial: '同步完成，但有 {failed} 项失败。',
       appliedTitle: '已应用',
+      removedTitle: '已删除',
       failedTitle: '失败',
       skippedTitle: '跳过',
       restartRequired: '需要重启生效',
@@ -169,7 +182,7 @@ window.__ModuleLoader__.load({
       conflictCount: '{count} conflict(s)',
       actionableCount: '{count} actionable',
       previewSummary: 'Gist: {hosts} host(s) / {bundles} bundle record(s); {actionable} actionable, {conflicts} conflict(s).',
-      conflictRules: 'Conflict policy: only add or upgrade; a newer remote version is selected by default; an older remote version or a same-version/different-source entry keeps the local copy; host disagreements default to the highest version. Each row can be changed.',
+      conflictRules: 'Conflict policy: only add or upgrade; a newer remote version is selected by default; an older remote version or a same-version/different-source entry keeps the local copy; host disagreements default to the highest version; local-only bundles are kept by default and can be removed.',
       kindInstall: 'Missing',
       kindUpgrade: 'Upgrade',
       kindDowngrade: 'Downgrade',
@@ -188,6 +201,18 @@ window.__ModuleLoader__.load({
       choiceLocal: 'Keep local',
       choiceKeepDisabled: 'Keep disabled',
       choiceSkip: 'Skip',
+      choiceRemove: 'Remove local plugin',
+      removeWarn: 'Removing uninstalls the package and drops its profile selection; it takes effect after a restart.',
+      localOnlyHint: 'Not present in the remote manifest; kept by default.',
+      localOnlyFixed: 'This bundle cannot be removed (provided by the DSH installation); it can only be kept.',
+      applyWithRemove: 'Apply ({count} change(s), {remove} remove)',
+      installMethodTitle: 'Install method',
+      installMethodValue: 'DSH plugin manager (ctx.pluginManager — pnpm underneath, the same path the plugin page uses)',
+      logTitle: 'Install log',
+      logEmpty: 'No log yet. Pull or sync to see progress here.',
+      logShow: 'Show log',
+      logHide: 'Hide log',
+      logProgress: '{done}/{total}',
       localVersion: 'local {version}',
       remoteVersion: 'remote {version}',
       notInstalled: 'not installed',
@@ -196,6 +221,7 @@ window.__ModuleLoader__.load({
       applyOk: 'Sync finished: {applied} installed/enabled, {failed} failed.',
       applyPartial: 'Sync finished with {failed} failure(s).',
       appliedTitle: 'Applied',
+      removedTitle: 'Removed',
       failedTitle: 'Failed',
       skippedTitle: 'Skipped',
       restartRequired: 'Restart required',
@@ -275,6 +301,10 @@ window.__ModuleLoader__.load({
 .dsh-ps-confirm{border:1px solid var(--dsw-alias-state-warn-primary);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--dsw-alias-bg-layer-2)}
 .dsh-ps-result{display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:20px}
 .dsh-ps-muted{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.dsh-ps-log{max-height:260px;overflow:auto;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-base);padding:8px 10px;display:flex;flex-direction:column;gap:2px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:18px}
+.dsh-ps-logline{color:var(--dsw-alias-label-secondary);white-space:pre-wrap;overflow-wrap:anywhere}
+.dsh-ps-logline.warn{color:var(--dsw-alias-state-warn-primary)}
+.dsh-ps-logline.error{color:var(--dsw-alias-state-error-primary)}
 @media(max-width:640px){.dsh-ps-grid{grid-template-columns:minmax(0,1fr)}.dsh-ps-entry-head{flex-direction:column;align-items:stretch}.dsh-ps-select{width:100%}}
 `
 
@@ -326,6 +356,7 @@ window.__ModuleLoader__.load({
         return t('choiceRemote')
       }
       if (choice === 'local') return entry.kind === 'enable' ? t('choiceKeepDisabled') : t('choiceLocal')
+      if (choice === 'remove') return t('choiceRemove')
       return t('choiceSkip')
     }
 
@@ -379,6 +410,28 @@ window.__ModuleLoader__.load({
       const [confirmPush, setConfirmPush] = React.useState(false)
       const [pushing, setPushing] = React.useState(false)
       const [pushResult, setPushResult] = React.useState(null)
+      const [job, setJob] = React.useState(null)
+      const [showLog, setShowLog] = React.useState(false)
+      const [confirmRemove, setConfirmRemove] = React.useState(null)
+
+      const pollJob = React.useCallback(async () => {
+        try {
+          const data = await call('jobs')
+          setJob(data.latest ?? null)
+        } catch {
+          // A log read must never break the page.
+        }
+      }, [])
+
+      React.useEffect(() => {
+        void pollJob()
+      }, [pollJob])
+
+      React.useEffect(() => {
+        if (!applying && !previewing && !pushing) return undefined
+        const timer = setInterval(() => { void pollJob() }, 700)
+        return () => clearInterval(timer)
+      }, [applying, previewing, pushing, pollJob])
 
       const loadStatus = React.useCallback(async () => {
         setLoading(true)
@@ -451,6 +504,7 @@ window.__ModuleLoader__.load({
         setError(null)
         setMessage(null)
         setApplyResult(null)
+        setShowLog(true)
         try {
           const data = await call('preview', { method: 'POST', body: {} })
           const next = {}
@@ -458,8 +512,10 @@ window.__ModuleLoader__.load({
           setPreview(data)
           setSelections(next)
           void loadStatus()
+          void pollJob()
         } catch (failure) {
           setError(t('actionFailed', { message: failure.message }))
+          void pollJob()
         } finally {
           setPreviewing(false)
         }
@@ -470,6 +526,7 @@ window.__ModuleLoader__.load({
         setApplying(true)
         setError(null)
         setMessage(null)
+        setShowLog(true)
         try {
           const data = await call('apply', {
             method: 'POST',
@@ -477,10 +534,14 @@ window.__ModuleLoader__.load({
           })
           setApplyResult(data)
           setPreview(null)
-          setMessage(data.ok ? t('applyOk', { applied: data.totalApplied, failed: 0 }) : t('applyPartial', { failed: data.failed.length }))
+          setMessage(data.ok
+            ? t('applyOk', { applied: data.totalApplied, failed: 0 })
+            : t('applyPartial', { failed: data.failed.length }))
           void loadStatus()
+          void pollJob()
         } catch (failure) {
           setError(t('actionFailed', { message: failure.message }))
+          void pollJob()
         } finally {
           setApplying(false)
         }
@@ -490,6 +551,7 @@ window.__ModuleLoader__.load({
         setPushing(true)
         setError(null)
         setMessage(null)
+        setShowLog(true)
         try {
           const data = await call('push', { method: 'POST', body: { confirm: true } })
           setPushResult(data)
@@ -503,9 +565,11 @@ window.__ModuleLoader__.load({
               : t('pushUnchanged'))
           setConfirmPush(false)
           void loadStatus()
+          void pollJob()
           setTimeout(() => { void loadStatus() }, 1200)
         } catch (failure) {
           setError(t('actionFailed', { message: failure.message }))
+          void pollJob()
         } finally {
           setPushing(false)
         }
@@ -513,10 +577,14 @@ window.__ModuleLoader__.load({
 
       const visibleEntries = preview === null ? [] : preview.entries.filter((entry) => (
         entry.defaultChoice === 'remote'
+        || entry.choices.includes('remove')
         || entry.conflict !== null
         || ['install', 'upgrade', 'downgrade', 'spec-change', 'enable'].includes(entry.kind)
       ))
-      const selectedCount = visibleEntries.filter((entry) => selections[entry.id] === 'remote').length
+      const selectedCount = visibleEntries.filter((entry) => (
+        selections[entry.id] === 'remote' || selections[entry.id] === 'remove'
+      )).length
+      const removeCount = visibleEntries.filter((entry) => selections[entry.id] === 'remove').length
 
       if (loading && status === null) {
         return h('div', { className: 'dsh-ps' },
@@ -684,6 +752,12 @@ window.__ModuleLoader__.load({
                       }, entry.choices.map((choice) => h('option', { key: choice, value: choice }, choiceLabel(entry, choice, t)))),
                     ),
                     entry.conflict === null ? null : h('div', { className: 'dsh-ps-conflict' }, conflictLabel(entry.conflict, t)),
+                    entry.kind === 'local-only'
+                      ? h('div', { className: 'dsh-ps-meta' }, t('localOnlyHint'))
+                      : null,
+                    entry.kind === 'local-only' && !entry.local?.removable
+                      ? h('div', { className: 'dsh-ps-conflict' }, t('localOnlyFixed'))
+                      : null,
                     entry.conflict?.type === 'host-disagreement' && entry.remote?.variants?.length
                       ? h('div', { className: 'dsh-ps-variants' },
                           entry.remote.variants.map((variant) => h('span', {
@@ -693,13 +767,25 @@ window.__ModuleLoader__.load({
                       : null,
                   )),
                 ),
+            removeCount > 0 ? h('div', { className: 'dsh-ps-alert' }, t('removeWarn')) : null,
             h('div', { className: 'dsh-ps-actions' },
               h('button', {
                 type: 'button',
-                className: 'dsh-ps-btn primary',
+                className: removeCount > 0 ? 'dsh-ps-btn danger' : 'dsh-ps-btn primary',
                 disabled: applying || selectedCount === 0,
-                onClick: () => { void applyPreview() },
-              }, applying ? t('applying') : t('apply')),
+                onClick: () => {
+                  if (removeCount > 0 && confirmRemove !== preview.previewId) {
+                    setConfirmRemove(preview.previewId)
+                    return
+                  }
+                  setConfirmRemove(null)
+                  void applyPreview()
+                },
+              }, applying
+                ? t('applying')
+                : removeCount > 0 && confirmRemove !== preview.previewId
+                  ? t('applyWithRemove', { count: selectedCount, remove: removeCount })
+                  : t('apply')),
               h('span', { className: 'dsh-ps-muted' }, `${selectedCount} / ${visibleEntries.length}`),
             ),
           ),
@@ -712,6 +798,13 @@ window.__ModuleLoader__.load({
               ? h('div', null,
                   h('div', { className: 'dsh-ps-label' }, t('appliedTitle')),
                   applyResult.applied.map((item) => h('div', { className: 'dsh-ps-meta', key: `a-${item.name}` },
+                    `${item.name}${item.restartRequired ? ` — ${t('restartRequired')}` : ''}`)),
+                )
+              : null,
+            applyResult.removed?.length
+              ? h('div', null,
+                  h('div', { className: 'dsh-ps-label' }, t('removedTitle')),
+                  applyResult.removed.map((item) => h('div', { className: 'dsh-ps-meta', key: `r-${item.name}` },
                     `${item.name}${item.restartRequired ? ` — ${t('restartRequired')}` : ''}`)),
                 )
               : null,
@@ -772,6 +865,39 @@ window.__ModuleLoader__.load({
                   onClick: () => { setConfirmPush(true) },
                 }, pushing ? t('pushing') : (gistConfigured ? t('push') : t('pushCreating'))),
               ),
+        ),
+
+        h('section', { className: 'dsh-ps-card' },
+          h('div', { className: 'dsh-ps-head' },
+            h('div', null,
+              h('h3', { className: 'dsh-ps-title' }, t('logTitle')),
+              h('p', { className: 'dsh-ps-desc' }, t('installMethodTitle')),
+            ),
+            h('button', {
+              type: 'button',
+              className: 'dsh-ps-btn',
+              onClick: () => { setShowLog((current) => !current) },
+            }, showLog ? t('logHide') : t('logShow')),
+          ),
+          h('p', { className: 'dsh-ps-hint' }, t('installMethodValue')),
+          h('div', { className: 'dsh-ps-summary' },
+            h('span', { className: `dsh-ps-badge ${job?.status === 'failed' ? 'error' : job?.status === 'done' ? 'ok' : ''}` },
+              job === null ? t('logEmpty') : `${job.kind} · ${job.status}`),
+            job?.progress?.total > 0
+              ? h('span', { className: 'dsh-ps-badge' },
+                  t('logProgress', { done: job.progress.done, total: job.progress.total }))
+              : null,
+          ),
+          showLog
+            ? h('div', { className: 'dsh-ps-log' },
+                job === null || job.lines.length === 0
+                  ? h('p', { className: 'dsh-ps-muted' }, t('logEmpty'))
+                  : job.lines.map((line, index) => h('div', {
+                      className: `dsh-ps-logline ${line.level === 'error' ? 'error' : line.level === 'warn' ? 'warn' : ''}`,
+                      key: `${index}-${line.at}`,
+                    }, `${line.at.slice(11, 19)}  ${line.message}`)),
+              )
+            : null,
         ),
       )
     }

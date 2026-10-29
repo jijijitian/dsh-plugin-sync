@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildPreview } from '../lib/preview.js'
+import { buildPreview, selectPreviewEntries } from '../lib/preview.js'
 import { normalizeManifest } from '../lib/manifest.js'
 
 function bundle(name, version, spec, enabled = true) {
@@ -84,6 +84,8 @@ test('preview classifies installs, upgrades, conflicts, enables, and local-only 
   assert.equal(byName.get('enable-me').conflict.type, 'enable-state')
   assert.equal(byName.get('enable-me').defaultChoice, 'local')
   assert.equal(byName.get('local-only').kind, 'local-only')
+  assert.equal(byName.get('local-only').defaultChoice, 'local')
+  assert.deepEqual(byName.get('local-only').choices, ['local', 'remove'])
   assert.equal(byName.get('remote-off').kind, 'remote-disabled')
   assert.equal(byName.get('remote-off').defaultChoice, 'skip')
 
@@ -101,7 +103,31 @@ test('preview classifies installs, upgrades, conflicts, enables, and local-only 
   assert.equal(preview.counts.specChange, 1)
   assert.equal(preview.counts.enable, 1)
   assert.equal(preview.counts.localOnly, 1)
+  assert.equal(preview.counts.removable, 1)
   assert.equal(preview.counts.conflicts, 5)
+})
+
+test('a local-only bundle keeps only the keep choice when it cannot be removed', () => {
+  const manifest = manifestWith({ remote: { hostId: 'remote', bundles: [] } })
+  const local = [{ ...bundle('built-in', '1.0.0', 'built-in@1.0.0'), removable: false }]
+  const preview = buildPreview({ manifest, localBundles: local, hostId: 'self' })
+  const entry = preview.entries.find((item) => item.name === 'built-in')
+  assert.equal(entry.kind, 'local-only')
+  assert.deepEqual(entry.choices, ['local'])
+  assert.equal(entry.defaultChoice, 'local')
+  assert.equal(preview.counts.removable, 0)
+})
+
+test('selectPreviewEntries keeps remote and remove choices only', () => {
+  const preview = {
+    entries: [
+      { id: 'a', choices: ['local', 'remove'], defaultChoice: 'local' },
+      { id: 'b', choices: ['remote', 'local'], defaultChoice: 'remote' },
+      { id: 'c', choices: ['local'], defaultChoice: 'local' },
+    ],
+  }
+  const chosen = selectPreviewEntries(preview, { a: 'remove', b: 'remote' })
+  assert.deepEqual(chosen.map((item) => [item.entry.id, item.choice]), [['a', 'remove'], ['b', 'remote']])
 })
 
 test('preview keeps a local-only bundle disabled from remote as local', () => {

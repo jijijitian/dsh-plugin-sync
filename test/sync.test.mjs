@@ -163,6 +163,12 @@ class FakeManager {
   async setBundleEnabled(name, enabled) {
     return { changed: true, application: 'applied', stage: 'enable', target: name, enabled }
   }
+
+  async removeBundle(name) {
+    this.calls.push({ removed: name })
+    this.bundles = this.bundles.filter((bundle) => bundle.name !== name)
+    return { changed: true, application: 'applied', stage: 'remove', target: name, warnings: [] }
+  }
 }
 
 function findEntry(preview, name) {
@@ -264,6 +270,77 @@ test('push with no Gist id creates a secret Gist and remembers it', async (t) =>
   const status = await runtime.status()
   assert.equal(status.gistId, '0123456789abcdef')
   assert.equal(status.gistUrl, 'https://gist.github.com/0123456789abcdef')
+})
+
+test('apply removes a local-only bundle when the user chooses remove', async (t) => {
+  const mock = await startMock({
+    schemaVersion: 1,
+    hosts: { remote: { bundles: [] } },
+  })
+  t.after(() => mock.close())
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const manager = new FakeManager([
+    { name: 'dsh-orphan', spec: 'dsh-orphan@1.0.0', version: '1.0.0', availability: 'profile', installed: true, enabled: true, removable: true, source: 'dsh-orphan@1.0.0' },
+  ])
+  const runtime = createSyncRuntime({
+    config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
+    pluginManager: manager,
+    logger: { info() {}, warn() {} },
+    statePath: join(dir, 'state.json'),
+    env: {},
+  })
+  const preview = await runtime.preview()
+  const entry = findEntry(preview, 'dsh-orphan')
+  assert.equal(entry.kind, 'local-only')
+  assert.equal(entry.defaultChoice, 'local')
+  assert.deepEqual(entry.choices, ['local', 'remove'])
+
+  const kept = await runtime.apply(preview.previewId, {})
+  assert.equal(kept.totalRemoved, 0)
+  assert.equal(manager.bundles.length, 1)
+
+  const preview2 = await runtime.preview()
+  const removed = await runtime.apply(preview2.previewId, { 'dsh-orphan': 'remove' })
+  assert.equal(removed.ok, true)
+  assert.equal(removed.removed.length, 1)
+  assert.equal(removed.removed[0].name, 'dsh-orphan')
+  assert.equal(manager.bundles.length, 0)
+})
+
+test('apply records a job log with per-item progress', async (t) => {
+  const mock = await startMock({
+    schemaVersion: 1,
+    hosts: {
+      remote: { bundles: [{ name: 'dsh-extra', spec: 'dsh-extra@1.0.0', version: '1.0.0', enabled: true }] },
+    },
+  })
+  t.after(() => mock.close())
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const runtime = createSyncRuntime({
+    config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
+    pluginManager: new FakeManager([]),
+    logger: { info() {}, warn() {} },
+    statePath: join(dir, 'state.json'),
+    env: {},
+  })
+  const preview = await runtime.preview()
+  assert.equal(typeof preview.jobId, 'string')
+  const previewJob = runtime.job(preview.jobId)
+  assert.equal(previewJob.kind, 'preview')
+  assert.equal(previewJob.status, 'done')
+  assert.ok(previewJob.lines.length > 0)
+
+  const applied = await runtime.apply(preview.previewId, { 'dsh-extra': 'remote' })
+  assert.equal(typeof applied.jobId, 'string')
+  const job = runtime.job(applied.jobId)
+  assert.equal(job.kind, 'apply')
+  assert.equal(job.status, 'done')
+  assert.deepEqual(job.progress, { done: 1, total: 1 })
+  assert.ok(job.lines.some((line) => /installing dsh-extra/.test(line.message)))
+  assert.ok(job.lines.some((line) => /dsh-extra: installed/.test(line.message)))
+  assert.equal(runtime.latestJob('apply').id, applied.jobId)
 })
 
 test('preview without a Gist id asks for one', async (t) => {

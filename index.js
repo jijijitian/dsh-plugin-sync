@@ -7,7 +7,7 @@ export { normalizeConfig }
 export const name = 'dsh-plugin-sync'
 export const inject = ['tools', 'pluginManager']
 
-const ACTIONS = new Set(['status', 'preview', 'apply', 'push'])
+const ACTIONS = new Set(['status', 'preview', 'apply', 'push', 'log'])
 
 function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -83,6 +83,12 @@ export function renderToolResult(_args, value) {
     renderPreview(value, lines)
     lines.push(`Preview ID: ${value.previewId}`)
   }
+  if (Array.isArray(value.removed)) {
+    lines.push(`Removed: ${value.removed.length}`)
+    for (const item of value.removed.slice(0, 12)) {
+      lines.push(`  - ${item.name}${item.restartRequired ? ' (restart required)' : ''}`)
+    }
+  }
   if (Array.isArray(value.applied)) {
     lines.push(`Applied: ${value.applied.length}`)
     for (const item of value.applied.slice(0, 12)) {
@@ -100,6 +106,17 @@ export function renderToolResult(_args, value) {
   }
   if (isRecord(value.remote) && value.remote.hostCount !== undefined) {
     lines.push(`Remote: ${value.remote.hostCount} host(s), ${value.remote.bundleCount} bundle record(s)`)
+  }
+  if (isRecord(value.job)) {
+    const job = value.job
+    lines.push(
+      `Job ${job.id} (${job.kind}): ${job.status}`
+      + (job.progress?.total > 0 ? ` ${job.progress.done}/${job.progress.total}` : ''),
+    )
+    for (const line of (job.lines ?? []).slice(-40)) {
+      lines.push(`  ${line.message}`)
+    }
+    if (typeof job.error === 'string' && job.error !== '') lines.push(`  ! ${job.error}`)
   }
   return [{ type: 'text', text: lines.join('\n') }]
 }
@@ -119,10 +136,11 @@ export function apply(ctx, rawConfig) {
     name: 'plugin_sync',
     description:
       'Preview and apply a GitHub Gist plugin manifest. Manual only: no background sync. '
-      + '`preview` fetches the Gist and returns install/upgrade/downgrade/enable entries plus conflicts; '
-      + '`apply` installs only the entries the caller selects from that preview; `push` uploads this host\'s portable inventory '
-      + '(creating a secret Gist when no Gist id is configured); `status` reports config and last-run state. '
-      + 'The same operations are available in the plugin page.',
+      + '`preview` fetches the Gist and returns install/upgrade/downgrade/enable/local-only entries plus conflicts; '
+      + '`apply` installs, enables, or removes only the entries the caller selects from that preview; '
+      + '`push` uploads this host\'s portable inventory (creating a secret Gist when no Gist id is configured); '
+      + '`log` returns the latest install log with per-item progress; `status` reports config and last-run state. '
+      + 'Installs and removals go through the DSH plugin manager. The same operations are available in the plugin page.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -130,7 +148,7 @@ export function apply(ctx, rawConfig) {
         action: {
           type: 'string',
           enum: [...ACTIONS],
-          description: 'status, preview, apply, or push.',
+          description: 'status, preview, apply, push, or log.',
         },
         previewId: {
           type: 'string',
@@ -138,8 +156,12 @@ export function apply(ctx, rawConfig) {
         },
         selections: {
           type: 'object',
-          additionalProperties: { type: 'string', enum: ['remote', 'local', 'skip'] },
-          description: 'Map of bundle name to choice; omitted entries use the preview default.',
+          additionalProperties: { type: 'string', enum: ['remote', 'local', 'skip', 'remove'] },
+          description: 'Map of bundle name to choice. `remove` uninstalls a local-only bundle; omitted entries use the preview default.',
+        },
+        jobId: {
+          type: 'string',
+          description: 'Job id for `log`; omitted returns the latest job.',
         },
       },
       required: ['action'],
@@ -166,6 +188,14 @@ export function apply(ctx, rawConfig) {
         if (action === 'status') return { ...(await runtime.status()), action: 'status' }
         if (action === 'preview') return { ...(await runtime.preview({ signal: exec?.signal })), action: 'preview' }
         if (action === 'push') return { ...(await runtime.push({ signal: exec?.signal })), action: 'push' }
+        if (action === 'log') {
+          const jobId = typeof args?.jobId === 'string' && args.jobId !== '' ? args.jobId : undefined
+          const job = jobId === undefined ? runtime.latestJob() : runtime.job(jobId)
+          if (job === null) {
+            return { ok: false, action, error: { code: 'job-not-found', message: 'No install job is recorded yet' } }
+          }
+          return { ok: true, action, job }
+        }
         if (typeof args?.previewId !== 'string' || args.previewId === '') {
           return {
             ok: false,

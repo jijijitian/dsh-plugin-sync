@@ -28,9 +28,23 @@ plugin_manager action=install_bundle target=github:jijijitian/dsh-plugin-sync
    - older remote version → keep local by default (no silent downgrade);
    - same version but different source → keep local by default;
    - installed but disabled locally → keep disabled or enable;
-   - hosts disagree on version/source → use the highest version, keep local, or skip.
-6. **Apply**: only rows set to **use remote** are installed or enabled. Nothing is removed or disabled.
+   - hosts disagree on version/source → use the highest version, keep local, or skip;
+   - local only (missing from the Gist) → **keep by default**, or remove the local bundle.
+6. **Apply**: only rows set to **use remote** or **remove** are executed. Installs and removals both go through the DSH plugin manager.
 7. **Push**: **Push local inventory** updates the Gist after a confirmation. Unchanged content creates no update. Concurrency uses the Gist version: read, compare before writing, and re-merge on change (up to three attempts). GitHub rejects conditional headers such as `If-Match` on this endpoint with `400 Bad Request`, so ETag preconditions cannot be used.
+
+## Install method and log
+
+Every install or removal calls the **DSH plugin manager** (`ctx.pluginManager`), the same path the Plugins page uses: DSH's bundled pnpm runs in the profile directory and updates `package.json` / `pnpm-lock.yaml`. The plugin never invokes pnpm itself and never copies packages.
+
+The page also shows an **install log** card:
+
+- The current job kind (preview / apply / push), its status, and `done/total` progress.
+- One line per action, such as `installing dsh-context@0.77.0`, `dsh-context: installed`, `dsh-orphan: removed`.
+- Failures and warnings are colour-coded so the failing item is obvious.
+- The panel refreshes while a job runs and keeps the last result afterwards.
+
+The same log is available through the `plugin_sync` tool's `log` action. Removal is irreversible: it uninstalls the package and drops the profile selection, effective after a restart, so the apply button requires a second confirmation once a removal is selected. Bundles provided by the DSH installation and marked non-removable only offer "keep".
 
 ## Configuration
 
