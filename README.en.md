@@ -40,11 +40,27 @@ Every install or removal calls the **DSH plugin manager** (`ctx.pluginManager`),
 The page also shows an **install log** card:
 
 - The current job kind (preview / apply / push), its status, and `done/total` progress.
-- One line per action, such as `installing dsh-context@0.77.0`, `dsh-context: installed`, `dsh-orphan: removed`.
+- One line per action, such as `installing dsh-context@0.77.0`, `dsh-context: installed`, `dsh-orphan: removed`, `dsh-extra: already installed; replacing 1.0.0 with 2.0.0`.
 - Failures and warnings are colour-coded so the failing item is obvious.
 - The panel refreshes while a job runs and keeps the last result afterwards.
 
 The same log is available through the `plugin_sync` tool's `log` action. Removal is irreversible: it uninstalls the package and drops the profile selection, effective after a restart, so the apply button requires a second confirmation once a removal is selected. Bundles provided by the DSH installation and marked non-removable only offer "keep".
+
+## Upgrading an installed bundle
+
+While an `hmr` service is live, dsh 0.2.1's plugin manager answers `installBundle` with `already-installed` whenever the package is already a profile dependency, so there is no in-place upgrade. The Plugins page and dshmarket both remove first and install again; this plugin does the same, with protection:
+
+1. Install normally. On `already-installed`, record the installed version.
+2. Write the attempt to `state.pendingUpgrades` so a crash is diagnosable.
+3. `removeBundle()` the old copy, then `installBundle()` the new spec.
+4. If the new install fails, reinstall the recorded old spec and report "restored the previous version".
+5. Clear `pendingUpgrades` after success or rollback.
+
+If the process stops between steps 3 and 4, the page shows **An upgrade did not finish** with the bundle names and versions.
+
+Two exceptions: the plugin never upgrades or removes **itself** (unloading the running code), and bundles marked `removable: false` only offer "keep".
+
+Plugin-manager refusals usually carry a `code` but no `message`; every failure is now translated into a readable sentence (for example `not-bundle` becomes "The package does not provide a bundle patch"), so `[object Object]` no longer appears.
 
 ## Configuration
 

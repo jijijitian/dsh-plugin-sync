@@ -80,6 +80,12 @@ export function renderToolResult(_args, value) {
     if (value.state.lastPreviewAt !== undefined) lines.push(`Last preview: ${value.state.lastPreviewAt}`)
     if (value.state.lastApplyAt !== undefined) lines.push(`Last apply: ${value.state.lastApplyAt}`)
     if (value.state.lastPushAt !== undefined) lines.push(`Last push: ${value.state.lastPushAt}`)
+    if (Array.isArray(value.state.pendingUpgrades) && value.state.pendingUpgrades.length > 0) {
+      lines.push(`Unfinished upgrades: ${value.state.pendingUpgrades.length}`)
+      for (const item of value.state.pendingUpgrades.slice(0, 8)) {
+        lines.push(`  ? ${item.name}: ${item.fromVersion || item.fromSpec} -> ${item.toSpec} (started ${item.startedAt})`)
+      }
+    }
   }
   if (typeof value.previewId === 'string' && isRecord(value.counts)) {
     renderPreview(value, lines)

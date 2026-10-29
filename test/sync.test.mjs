@@ -134,9 +134,12 @@ function makeConfig(overrides = {}) {
 }
 
 class FakeManager {
-  constructor(bundles) {
+  constructor(bundles, { hmr = false, failInstall = null } = {}) {
     this.bundles = bundles
     this.calls = []
+    this.hmr = hmr
+    this.failInstall = failInstall
+    this.present = new Set(bundles.map((bundle) => bundle.name))
   }
 
   async listBundles() {
@@ -147,16 +150,26 @@ class FakeManager {
     this.calls.push({ spec, options })
     const at = spec.lastIndexOf('@')
     const name = spec.startsWith('@') && at === 0 ? spec : at > 0 ? spec.slice(0, at) : spec
+    // dsh 0.2.1 rejects re-adding an existing dependency outright while hmr is live.
+    if (this.hmr && this.present.has(name)) {
+      return { changed: false, application: 'failed', stage: 'install', target: name, error: { code: 'already-installed' } }
+    }
+    if (this.failInstall !== null && this.failInstall(name, spec) === true) {
+      return { changed: false, application: 'failed', stage: 'install', target: name, error: { code: 'incompatible-version' } }
+    }
     this.bundles.push({
       name,
-      spec,
       version: '9.9.9',
       availability: 'profile',
       installed: true,
       enabled: true,
       removable: true,
+      // The real manager reports the installed spec through installTarget,
+      // not a top-level `spec`; mirror that so a regression is caught here.
+      installTarget: { spec },
       source: spec,
     })
+    this.present.add(name)
     return { changed: true, application: 'applied', version: '9.9.9', warnings: [] }
   }
 
@@ -167,6 +180,7 @@ class FakeManager {
   async removeBundle(name) {
     this.calls.push({ removed: name })
     this.bundles = this.bundles.filter((bundle) => bundle.name !== name)
+    this.present.delete(name)
     return { changed: true, application: 'applied', stage: 'remove', target: name, warnings: [] }
   }
 }
@@ -341,6 +355,131 @@ test('apply records a job log with per-item progress', async (t) => {
   assert.ok(job.lines.some((line) => /installing dsh-extra/.test(line.message)))
   assert.ok(job.lines.some((line) => /dsh-extra: installed/.test(line.message)))
   assert.equal(runtime.latestJob('apply').id, applied.jobId)
+})
+
+test('an upgrade removes the installed copy first when the manager refuses a re-add', async (t) => {
+  const mock = await startMock({
+    schemaVersion: 1,
+    hosts: { remote: { bundles: [{ name: 'dsh-extra', spec: 'dsh-extra@2.0.0', version: '2.0.0', enabled: true }] } },
+  })
+  t.after(() => mock.close())
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const manager = new FakeManager([
+    { name: 'dsh-extra', spec: 'dsh-extra@1.0.0', version: '1.0.0', availability: 'profile', installed: true, enabled: true, removable: true },
+  ], { hmr: true })
+  const runtime = createSyncRuntime({
+    config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
+    pluginManager: manager,
+    logger: { info() {}, warn() {} },
+    statePath: join(dir, 'state.json'),
+    env: {},
+  })
+  const preview = await runtime.preview()
+  assert.equal(findEntry(preview, 'dsh-extra').kind, 'upgrade')
+
+  const result = await runtime.apply(preview.previewId, { 'dsh-extra': 'remote' })
+  assert.equal(result.ok, true, JSON.stringify(result.failed))
+  assert.equal(result.applied.length, 1)
+  assert.equal(result.applied[0].upgraded, true)
+  assert.equal(result.applied[0].replaced, '1.0.0')
+  assert.equal(manager.calls.some((call) => call.removed === 'dsh-extra'), true)
+  assert.equal(manager.bundles.find((bundle) => bundle.name === 'dsh-extra').installTarget.spec, 'dsh-extra@2.0.0')
+  const job = runtime.job(result.jobId)
+  assert.ok(job.lines.some((line) => /already installed; replacing/.test(line.message)))
+  assert.ok(job.lines.some((line) => /dsh-extra: upgraded/.test(line.message)))
+})
+
+test('a failed upgrade restores the previous version', async (t) => {
+  const mock = await startMock({
+    schemaVersion: 1,
+    hosts: { remote: { bundles: [{ name: 'dsh-extra', spec: 'dsh-extra@2.0.0', version: '2.0.0', enabled: true }] } },
+  })
+  t.after(() => mock.close())
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const manager = new FakeManager([
+    { name: 'dsh-extra', spec: 'dsh-extra@1.0.0', version: '1.0.0', availability: 'profile', installed: true, enabled: true, removable: true },
+  ], { hmr: true, failInstall: (name, spec) => spec === 'dsh-extra@2.0.0' })
+  const runtime = createSyncRuntime({
+    config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
+    pluginManager: manager,
+    logger: { info() {}, warn() {} },
+    statePath: join(dir, 'state.json'),
+    env: {},
+  })
+  const preview = await runtime.preview()
+  const result = await runtime.apply(preview.previewId, { 'dsh-extra': 'remote' })
+
+  assert.equal(result.ok, false)
+  assert.equal(result.failed.length, 1)
+  assert.equal(result.failed[0].rollback, 'restored')
+  assert.match(result.failed[0].error, /different DSH version/)
+  assert.match(result.failed[0].error, /Restored the previous copy/)
+  const restored = manager.bundles.find((bundle) => bundle.name === 'dsh-extra')
+  assert.equal(restored.installTarget.spec, 'dsh-extra@1.0.0')
+  const status = await runtime.status()
+  assert.equal(status.state.pendingUpgrades, undefined)
+})
+
+test('the plugin refuses to update or remove itself', async (t) => {
+  const mock = await startMock({
+    schemaVersion: 1,
+    hosts: { remote: { bundles: [{ name: 'dsh-plugin-sync', spec: 'dsh-plugin-sync@3.0.0', version: '3.0.0', enabled: true }] } },
+  })
+  t.after(() => mock.close())
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const manager = new FakeManager([
+    { name: 'dsh-plugin-sync', spec: 'dsh-plugin-sync@2.5.1', version: '2.5.1', availability: 'profile', installed: true, enabled: true, removable: true },
+  ], { hmr: true })
+  const runtime = createSyncRuntime({
+    config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
+    pluginManager: manager,
+    logger: { info() {}, warn() {} },
+    statePath: join(dir, 'state.json'),
+    env: {},
+  })
+  const preview = await runtime.preview()
+  assert.equal(findEntry(preview, 'dsh-plugin-sync').kind, 'upgrade')
+  const result = await runtime.apply(preview.previewId, { 'dsh-plugin-sync': 'remote' })
+
+  assert.equal(result.ok, false)
+  assert.equal(result.failed[0].code, 'self-update')
+  assert.equal(manager.calls.length, 0)
+  assert.equal(manager.bundles[0].spec, 'dsh-plugin-sync@2.5.1')
+})
+
+test('a refusal without a message is reported as readable text', async (t) => {
+  const mock = await startMock({
+    schemaVersion: 1,
+    hosts: { remote: { bundles: [{ name: 'dsh-extra', spec: 'dsh-extra@1.0.0', version: '1.0.0', enabled: true }] } },
+  })
+  t.after(() => mock.close())
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-plugin-sync-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const manager = new FakeManager([], {})
+  manager.installBundle = async () => ({
+    changed: false,
+    application: 'failed',
+    stage: 'install',
+    target: 'dsh-extra',
+    error: { code: 'not-bundle' },
+  })
+  const runtime = createSyncRuntime({
+    config: makeConfig({ apiBaseUrl: mock.apiBaseUrl }),
+    pluginManager: manager,
+    logger: { info() {}, warn() {} },
+    statePath: join(dir, 'state.json'),
+    env: {},
+  })
+  const preview = await runtime.preview()
+  const result = await runtime.apply(preview.previewId, { 'dsh-extra': 'remote' })
+  assert.equal(result.failed.length, 1)
+  assert.doesNotMatch(result.failed[0].error, /\[object Object\]/)
+  assert.match(result.failed[0].error, /does not provide a bundle patch/)
+  const job = runtime.job(result.jobId)
+  assert.ok(job.lines.every((line) => !line.message.includes('[object Object]')))
 })
 
 test('preview without a Gist id asks for one', async (t) => {

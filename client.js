@@ -93,6 +93,12 @@ window.__ModuleLoader__.load({
       localVersion: '本机 {version}',
       remoteVersion: '线上 {version}',
       notInstalled: '未安装',
+      upgradeNote: '升级已安装插件时，DSH 插件管理器会拒绝“重复安装”，因此这里先卸载旧版再安装新版；失败会自动装回旧版。',
+      selfBlocked: '本插件不能替换或删除自己，请在插件页操作。',
+      pendingTitle: '上次升级未完成',
+      pendingBody: '以下插件在升级途中中断，请检查或重新推送：',
+      rollbackRestored: '已回滚到旧版本',
+      rollbackFailed: '回滚失败，请手动重装',
       sourceHosts: '来源主机：{hosts}',
       sameVersion: '同一版本',
       applyOk: '同步完成：安装/启用 {applied} 项，失败 {failed} 项。',
@@ -216,6 +222,12 @@ window.__ModuleLoader__.load({
       localVersion: 'local {version}',
       remoteVersion: 'remote {version}',
       notInstalled: 'not installed',
+      upgradeNote: 'The DSH plugin manager rejects re-adding an installed bundle, so an upgrade removes the old copy and installs the new one; a failed install restores the old version.',
+      selfBlocked: 'This plugin cannot replace or remove itself; use the Plugins page.',
+      pendingTitle: 'An upgrade did not finish',
+      pendingBody: 'These bundles were interrupted mid-upgrade; check or push again:',
+      rollbackRestored: 'restored the previous version',
+      rollbackFailed: 'restore failed; reinstall manually',
       sourceHosts: 'Source hosts: {hosts}',
       sameVersion: 'same version',
       applyOk: 'Sync finished: {applied} installed/enabled, {failed} failed.',
@@ -471,6 +483,7 @@ window.__ModuleLoader__.load({
       const lastPreview = state?.lastPreviewAt
       const lastApply = state?.lastApplyAt
       const lastPush = state?.lastPushAt
+      const pendingUpgrades = Array.isArray(state?.pendingUpgrades) ? state.pendingUpgrades : []
 
       const updateField = (key, value) => {
         setDraft((current) => ({ ...(current ?? values), [key]: value }))
@@ -798,7 +811,10 @@ window.__ModuleLoader__.load({
               ? h('div', null,
                   h('div', { className: 'dsh-ps-label' }, t('appliedTitle')),
                   applyResult.applied.map((item) => h('div', { className: 'dsh-ps-meta', key: `a-${item.name}` },
-                    `${item.name}${item.restartRequired ? ` — ${t('restartRequired')}` : ''}`)),
+                    `${item.name}`
+                    + `${item.upgraded === true && item.replaced ? ` (${item.replaced} → ${item.version ?? ''})` : ''}`
+                    + `${item.rollback === 'restored' ? ` — ${t('rollbackRestored')}` : ''}`
+                    + `${item.restartRequired ? ` — ${t('restartRequired')}` : ''}`)),
                 )
               : null,
             applyResult.removed?.length
@@ -880,6 +896,15 @@ window.__ModuleLoader__.load({
             }, showLog ? t('logHide') : t('logShow')),
           ),
           h('p', { className: 'dsh-ps-hint' }, t('installMethodValue')),
+          h('p', { className: 'dsh-ps-hint' }, t('upgradeNote')),
+          pendingUpgrades.length > 0
+            ? h('div', { className: 'dsh-ps-alert' },
+                h('div', null, t('pendingTitle')),
+                h('div', { className: 'dsh-ps-meta' }, t('pendingBody')),
+                pendingUpgrades.map((item) => h('div', { className: 'dsh-ps-meta', key: `p-${item.name}` },
+                  `${item.name}: ${item.fromVersion || item.fromSpec} -> ${item.toSpec}`)),
+              )
+            : null,
           h('div', { className: 'dsh-ps-summary' },
             h('span', { className: `dsh-ps-badge ${job?.status === 'failed' ? 'error' : job?.status === 'done' ? 'ok' : ''}` },
               job === null ? t('logEmpty') : `${job.kind} · ${job.status}`),

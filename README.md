@@ -99,6 +99,38 @@ Gist 需要 GitHub token：
 
 可能出现 `restart-required`，按 DSH 提示重启宿主。
 
+### 升级已安装插件（重要）
+
+dsh 0.2.1 的插件管理器在存在 `hmr` 服务时，只要包已经在 profile 的 `dependencies` 里，`installBundle` 就一律返回 `already-installed`（源码守卫在 `dsh-plugin-manager` 内部）。也就是说**没有原地升级**这条路，插件页和 dshmarket 都是用「先卸载、再安装」绕过去的。
+
+本插件采用同样的两步，并加了保护：
+
+1. 先照常安装；若返回 `already-installed`，记录当前已装版本；
+2. 把待升级项写入 `state.pendingUpgrades`（用于崩溃后排查）；
+3. 调用 `removeBundle()` 卸载旧版，再 `installBundle()` 装新版；
+4. 新版装不上时，立刻用记录的旧 spec 装回去，日志提示“已回滚到旧版本”；
+5. 成功或回滚后清除 `pendingUpgrades`。
+
+如果进程在第 3、4 步之间被中断，页面顶部会显示 **上次升级未完成**，列出插件名与涉及版本，方便你重新推送或去插件页处理。
+
+两个例外：
+
+- **本插件不会升级或删除自己**（删除会卸载正在运行的代码）。遇到自己的升级项会直接标记失败并提示去插件页更新。
+- 由 DSH 安装提供、`removable: false` 的插件只显示「保留」。
+
+### 错误信息
+
+插件管理器的拒绝大多只带 `code`、没有 `message`。现在所有失败都会翻译成可读句子，例如：
+
+| code | 页面显示 |
+| --- | --- |
+| `already-installed` | 该包已在此 profile 中；升级需要先卸载再安装 |
+| `incompatible-version` | 该包要求的 DSH 版本与当前宿主不同 |
+| `not-bundle` | 该包没有 bundle patch，无法启用 |
+| `management-required` | 该 bundle 由 DSH 安装管理，无法从 profile 修改 |
+
+不会再出现 `[object Object]`。
+
 ### 安装方式与日志
 
 同步时的安装/删除都走 **DSH 官方插件管理器**（`ctx.pluginManager`），底层与插件页安装完全相同：由 DSH 自带的 pnpm 在 profile 目录执行，并写入 `package.json` / `pnpm-lock.yaml`。本插件不自己调用 pnpm，也不复制包。
@@ -106,7 +138,7 @@ Gist 需要 GitHub token：
 页面底部新增 **安装日志** 面板：
 
 - 显示当前任务类型（preview / apply / push）、状态与进度（`已完成/总数`）；
-- 逐条记录每个插件的动作与结果，例如 `installing dsh-context@0.77.0`、`dsh-context: installed`、`dsh-orphan: removed`；
+- 逐条记录每个插件的动作与结果，例如 `installing dsh-context@0.77.0`、`dsh-context: installed`、`dsh-orphan: removed`、`dsh-extra: already installed; replacing 1.0.0 with 2.0.0`；
 - 失败与告警用不同颜色标出，便于定位是哪一项出错；
 - 任务运行期间自动刷新，结束后保留最后一次结果。
 
@@ -204,6 +236,8 @@ node --test
 - 推送、内容不变跳过、非法远端 JSON 不覆盖；
 - 本机独有插件的删除流程、不可移除插件的选项收敛；
 - 任务日志的进度、逐条消息与终态；
+- 已安装插件的卸载后重装升级、失败回滚、self-update 拦截；
+- 只有 code 没有 message 的拒绝被翻译成可读文本；
 - 工具结果渲染和客户端注册。
 
 ## 已知边界
