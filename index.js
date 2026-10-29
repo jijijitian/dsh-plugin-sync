@@ -58,10 +58,12 @@ export function renderToolResult(_args, value) {
     ? `FAILED: ${value.error === undefined ? 'one or more operations failed' : summarizeError(value.error)}`
     : 'OK')
   if (typeof value.hostId === 'string') lines.push(`Host: ${value.hostId}`)
-  if (typeof value.gistId === 'string' && value.gistId !== '') {
-    lines.push(`Gist: ${value.gistId}${typeof value.gistUrl === 'string' ? ` (${value.gistUrl})` : ''}`)
-  } else {
-    lines.push('Gist: not configured')
+  if (isRecord(value.job)) {
+    lines.push(`Job: ${value.job.id}`)
+  } else if (typeof value.gistId === 'string') {
+    lines.push(value.gistId !== ''
+      ? `Gist: ${value.gistId}${typeof value.gistUrl === 'string' ? ` (${value.gistUrl})` : ''}`
+      : 'Gist: not created yet')
   }
   if (isRecord(value.config)) {
     lines.push(`File: ${value.config.fileName ?? 'dsh-plugins.json'}`)

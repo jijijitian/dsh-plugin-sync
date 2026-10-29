@@ -47,16 +47,38 @@ test('preview rendering includes conflicts and actions', () => {
   assert.match(blocks[0].text, /Preview ID: preview-1/)
 })
 
+test('apply rendering lists removed entries and a job log', () => {
+  const blocks = renderToolResult({ action: 'log' }, {
+    ok: true,
+    action: 'log',
+    job: {
+      id: 'job-1',
+      kind: 'apply',
+      status: 'done',
+      progress: { done: 2, total: 2 },
+      lines: [
+        { at: '2026-01-01T00:00:00.000Z', level: 'info', message: 'dsh-orphan: removed' },
+      ],
+    },
+  })
+  assert.match(blocks[0].text, /Job job-1 \(apply\): done 2\/2/)
+  assert.match(blocks[0].text, /dsh-orphan: removed/)
+  assert.doesNotMatch(blocks[0].text, /Gist:/)
+})
+
 test('apply rendering lists installed and failed entries', () => {
   const blocks = renderToolResult({ action: 'apply' }, {
     ok: false,
     action: 'apply',
     applied: [{ name: 'one', status: 'installed' }],
+    removed: [{ name: 'gone', status: 'installed' }],
     failed: [{ name: 'two', error: 'boom' }],
     skipped: [],
   })
   assert.match(blocks[0].text, /Applied: 1/)
   assert.match(blocks[0].text, /\+ one/)
+  assert.match(blocks[0].text, /Removed: 1/)
+  assert.match(blocks[0].text, /- gone/)
   assert.match(blocks[0].text, /! two: boom/)
 })
 
